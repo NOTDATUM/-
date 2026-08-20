@@ -125,8 +125,11 @@ button { color: inherit; }
 .panel-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
 .panel-title h2 { margin: 5px 0 0; font-size: 18px; letter-spacing: -.04em; }
 .panel-title > span { color: #647187; font-size: 9px; }
-.all-chart { width: 100%; height: 320px; display: block; margin-top: 8px; }
+.all-chart-shell { position: relative; margin-top: 8px; }
+.all-chart { width: 100%; height: 320px; display: block; }
 .all-chart.compact { height: 160px; }
+.chart-scale-pill { position: absolute; top: 11px; right: 19px; padding: 5px 8px; border: 1px solid rgba(99,217,255,.18); border-radius: 999px; background: rgba(7,12,21,.78); color: rgba(151,220,242,.74); box-shadow: 0 5px 18px rgba(0,0,0,.2); backdrop-filter: blur(8px); font: 650 8px var(--font-geist-mono); letter-spacing: .08em; pointer-events: none; animation: scale-pop .7s cubic-bezier(.2,.8,.2,1); }
+@keyframes scale-pop { 0% { opacity: .2; transform: translateY(-4px) scale(.96); } 45% { color: var(--cyan); border-color: rgba(99,217,255,.4); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 11px; border-top: 1px solid var(--line); }
 .chart-legend button { display: flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: #758299; font: 600 8px var(--font-geist-mono); cursor: pointer; }
 .chart-legend button i, .chart-legend span i { width: 7px; height: 7px; border-radius: 50%; }

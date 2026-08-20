@@ -48,20 +48,60 @@ function prepareCanvas(canvas: HTMLCanvasElement) {
   return { context, width, height };
 }
 
+type ChartViewport = { min: number; max: number; xMax: number };
+
+function niceScaleStep(value: number) {
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(value, 1)));
+  const fraction = value / magnitude;
+  const niceFraction = fraction < 1.5 ? 1 : fraction < 3 ? 2 : fraction < 7 ? 5 : 10;
+  return niceFraction * magnitude;
+}
+
+function getAllStocksViewport(round: number): ChartViewport {
+  const values = stocks.flatMap((stock) => {
+    const first = stock.prices.find((price) => price !== null);
+    if (first === undefined || first === null) return [];
+    return stock.prices
+      .slice(0, round + 1)
+      .filter((price): price is number => price !== null)
+      .map((price) => (price / first) * 100);
+  });
+  if (!values.length || Math.max(...values) - Math.min(...values) < 1) {
+    return { min: 90, max: 110, xMax: Math.min(LAST_ROUND, Math.max(2, round + 1)) };
+  }
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const padding = Math.max((rawMax - rawMin) * .15, 5);
+  const paddedMin = Math.max(0, rawMin - padding);
+  const paddedMax = rawMax + padding;
+  const step = niceScaleStep((paddedMax - paddedMin) / 6);
+  return {
+    min: Math.max(0, Math.floor(paddedMin / step) * step),
+    max: Math.ceil(paddedMax / step) * step,
+    xMax: Math.min(LAST_ROUND, Math.max(2, round + 1)),
+  };
+}
+
 function AllStocksChart({ round, compact = false }: { round: number; compact?: boolean }) {
-  const paint = useCallback((canvas: HTMLCanvasElement) => {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<ChartViewport | null>(null);
+  const previousRoundRef = useRef<number | null>(null);
+  const targetViewport = useMemo(() => getAllStocksViewport(round), [round]);
+
+  const draw = useCallback((canvas: HTMLCanvasElement, viewport: ChartViewport, reveal: number) => {
     const prepared = prepareCanvas(canvas);
     if (!prepared) return;
     const { context, width, height } = prepared;
     const pad = compact ? { top: 12, right: 10, bottom: 22, left: 10 } : { top: 20, right: 20, bottom: 34, left: 42 };
     const plotWidth = width - pad.left - pad.right;
     const plotHeight = height - pad.top - pad.bottom;
-    const x = (index: number) => pad.left + (index / LAST_ROUND) * plotWidth;
-    const y = (indexValue: number) => pad.top + ((620 - indexValue) / 570) * plotHeight;
+    const x = (index: number) => pad.left + (index / viewport.xMax) * plotWidth;
+    const y = (indexValue: number) => pad.top + ((viewport.max - indexValue) / (viewport.max - viewport.min)) * plotHeight;
 
     if (!compact) {
       context.font = "500 10px Arial";
-      [50, 150, 250, 350, 450, 550].forEach((value) => {
+      for (let grid = 0; grid <= 5; grid += 1) {
+        const value = viewport.max - (grid / 5) * (viewport.max - viewport.min);
         const py = y(value);
         context.strokeStyle = "rgba(255,255,255,.07)";
         context.lineWidth = 1;
@@ -71,9 +111,9 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
         context.stroke();
         context.fillStyle = "rgba(211,222,240,.38)";
         context.textAlign = "right";
-        context.fillText(String(value), pad.left - 8, py + 3);
-      });
-      for (let index = 0; index <= LAST_ROUND; index += 1) {
+        context.fillText(String(Math.round(value)), pad.left - 8, py + 3);
+      }
+      for (let index = 0; index <= Math.floor(viewport.xMax + .001); index += 1) {
         context.fillStyle = index <= round ? "rgba(225,233,246,.7)" : "rgba(225,233,246,.2)";
         context.textAlign = "center";
         context.fillText(index === 0 ? "기준" : `${index}R`, x(index), height - 10);
@@ -87,8 +127,17 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
         .map((price, index) => ({ index, value: price === null ? null : (price / first) * 100 }))
         .filter((point) => point.index <= round && point.value !== null) as Array<{ index: number; value: number }>;
       if (!points.length) return;
+      const animatedPoints = points.map((point, index) => {
+        if (point.index !== round || index === 0 || reveal >= 1) return point;
+        const previous = points[index - 1];
+        return {
+          index: previous.index + (point.index - previous.index) * reveal,
+          value: previous.value + (point.value - previous.value) * reveal,
+        };
+      });
+      const entering = points.length === 1 && points[0].index === round && reveal < 1;
       context.beginPath();
-      points.forEach((point, index) => {
+      animatedPoints.forEach((point, index) => {
         const px = x(point.index);
         const py = y(point.value);
         if (index === 0) context.moveTo(px, py);
@@ -98,18 +147,67 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
       context.lineWidth = compact ? 1.4 : 2.2;
       context.lineJoin = "round";
       context.lineCap = "round";
-      context.globalAlpha = compact ? .8 : .92;
+      context.globalAlpha = (compact ? .8 : .92) * (entering ? Math.max(.15, reveal) : 1);
       context.stroke();
       context.globalAlpha = 1;
-      const last = points.at(-1)!;
+      const last = animatedPoints.at(-1)!;
+      const pulse = Math.sin(reveal * Math.PI);
+      context.save();
+      context.shadowColor = stock.color;
+      context.shadowBlur = pulse * (compact ? 7 : 14);
       context.beginPath();
-      context.arc(x(last.index), y(last.value), compact ? 2 : 3.2, 0, Math.PI * 2);
+      context.arc(x(last.index), y(last.value), (compact ? 2 : 3.2) + pulse * (compact ? 1 : 2), 0, Math.PI * 2);
       context.fillStyle = stock.color;
+      context.globalAlpha = entering ? Math.max(.15, reveal) : 1;
       context.fill();
+      context.restore();
     });
   }, [round, compact]);
-  const ref = useCanvasPainter(paint, [paint]);
-  return <canvas ref={ref} className={compact ? "all-chart compact" : "all-chart"} aria-label="전체 종목 가격 지수 차트" />;
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const from = viewportRef.current ?? targetViewport;
+    const previousRound = previousRoundRef.current;
+    const roundChanged = previousRound !== null && previousRound !== round;
+    const revealPoint = roundChanged && previousRound !== null && round > previousRound;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const duration = roundChanged && !reducedMotion ? 950 : 0;
+    const startedAt = performance.now();
+    let animationFrame = 0;
+    let resizeFrame = 0;
+
+    previousRoundRef.current = round;
+    const animate = (now: number) => {
+      const progress = duration ? Math.min(1, (now - startedAt) / duration) : 1;
+      const eased = 1 - (1 - progress) ** 3;
+      const viewport = {
+        min: from.min + (targetViewport.min - from.min) * eased,
+        max: from.max + (targetViewport.max - from.max) * eased,
+        xMax: from.xMax + (targetViewport.xMax - from.xMax) * eased,
+      };
+      viewportRef.current = viewport;
+      draw(canvas, viewport, revealPoint ? eased : 1);
+      if (progress < 1) animationFrame = requestAnimationFrame(animate);
+    };
+    animate(startedAt);
+
+    const resize = () => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => draw(canvas, viewportRef.current ?? targetViewport, 1));
+    };
+    window.addEventListener("resize", resize);
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      cancelAnimationFrame(resizeFrame);
+      window.removeEventListener("resize", resize);
+    };
+  }, [draw, round, targetViewport]);
+
+  return <div className="all-chart-shell">
+    <canvas ref={ref} className={compact ? "all-chart compact" : "all-chart"} aria-label={`전체 종목 가격 지수 차트, 자동 축 ${targetViewport.min}에서 ${targetViewport.max}`} />
+    {!compact && <span key={round} className="chart-scale-pill">AUTO SCALE · {targetViewport.min}–{targetViewport.max}</span>}
+  </div>;
 }
 
 function StockChart({ stock, round, mini = false }: { stock: Stock; round: number; mini?: boolean }) {
