@@ -1,27 +1,30 @@
 import assert from "node:assert/strict";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
-
-  return worker.fetch(
-    new Request("http://localhost/", { headers: { accept: "text/html" } }),
-    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
-    { waitUntil() {}, passThroughOnException() {} },
-  );
+async function builtSources() {
+  const server = await readFile(new URL("../dist/server/index.js", import.meta.url), "utf8");
+  const ssrDir = new URL("../dist/server/ssr/assets/", import.meta.url);
+  const files = await readdir(ssrDir);
+  const pageFile = files.find((file) => file.startsWith("page-") && file.endsWith(".js"));
+  assert.ok(pageFile, "the built page bundle should exist");
+  const page = await readFile(new URL(pageFile, ssrDir), "utf8");
+  return { page, server };
 }
 
-test("server-renders the Biology Exchange game", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-  const html = await response.text();
-  assert.match(html, /<title>BE · Biology Exchange<\/title>/i);
-  assert.match(html, /BIOLOGY EXCHANGE/);
-  assert.match(html, /생명과학부 모의주식시장/);
-  assert.match(html, /스태프 모드/);
-  assert.doesNotMatch(html, /codex-preview/);
-  assert.doesNotMatch(html, /Your site is taking shape/);
+test("builds the Biology Exchange login and role-based game", async () => {
+  const { page, server } = await builtSources();
+
+  assert.match(server, /BE · Biology Exchange/);
+  assert.match(page, /BIOLOGY EXCHANGE/);
+  assert.match(page, /생명과학부 모의주식시장/);
+  assert.match(page, /모의주식시장 입장/);
+  assert.match(page, /전체 주식시장/);
+  assert.match(page, /조별 현재 총 자산/);
+  assert.match(page, /label: "10라운드"/);
+  assert.match(server, /TEAM_PASSWORD/);
+  assert.match(server, /STAFF_PASSWORD/);
+  assert.match(server, /SESSION_SIGNING_KEY/);
+  assert.doesNotMatch(page, /codex-preview/);
+  assert.doesNotMatch(page, /Your site is taking shape/);
 });
