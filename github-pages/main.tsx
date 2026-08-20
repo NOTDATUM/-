@@ -10,7 +10,8 @@ declare global {
   }
 }
 
-window.__BE_STATIC_MODE__ = true;
+window.__BE_API_URL__ = import.meta.env.VITE_BE_API_URL?.trim();
+window.__BE_STATIC_MODE__ = false;
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

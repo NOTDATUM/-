@@ -1,0 +1,4 @@
+{$GAME_DOMAIN} {
+  encode zstd gzip
+  reverse_proxy game-server:8787
+}

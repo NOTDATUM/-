@@ -40,6 +40,9 @@ next-env.d.ts
 /dist/
 /github-pages-dist/
 /.lan-data/
+/aws-data/
+/deploy/aws/aws.env
+/server/data/
 /.wrangler/
 /outputs/
 /work/

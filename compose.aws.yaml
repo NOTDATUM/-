@@ -1,0 +1,44 @@
+name: biology-exchange
+
+services:
+  game-server:
+    build:
+      context: .
+      dockerfile: deploy/aws/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - deploy/aws/aws.env
+    environment:
+      PORT: "8787"
+      DATA_DIR: /data
+    expose:
+      - "8787"
+    volumes:
+      - game_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      game-server:
+        condition: service_healthy
+    environment:
+      GAME_DOMAIN: ${GAME_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/aws/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  game_data:
+  caddy_data:
+  caddy_config:

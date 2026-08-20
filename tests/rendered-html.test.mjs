@@ -23,7 +23,7 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /ALL STOCKS · ACTUAL PRICE/);
   assert.doesNotMatch(page, /ALL STOCKS · INDEXED/);
   assert.match(page, /조별 현재 총 자산/);
-  assert.match(page, /label: "10라운드"/);
+  assert.match(page, /["']?label["']?: "10라운드"/);
   assert.match(server, /TEAM_PASSWORD/);
   assert.match(server, /STAFF_PASSWORD/);
   assert.match(server, /SESSION_SIGNING_KEY/);
