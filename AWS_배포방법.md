@@ -37,7 +37,26 @@ EC2 EBS의 Docker 영구 볼륨
 
 게임 서버의 내부 포트 8787은 외부에 공개하지 않습니다.
 
-## 2. EC2에 서버 설치
+## 2. EC2에 서버 설치(권장: 한 줄 자동 설치)
+
+AWS 콘솔에서 **EC2 인스턴스 연결**로 웹 터미널을 연 뒤 다음 한 줄을 그대로 실행합니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/NOTDATUM/-/main/deploy/aws/bootstrap-server.sh | sudo bash
+```
+
+설치 도중 조 공통 비밀번호와 스태프 비밀번호를 묻습니다. Enter만 누르면 각각 `donghaeng`, `12345678`을 사용합니다. 스크립트가 다음 작업을 자동으로 처리합니다.
+
+- Ubuntu 또는 Amazon Linux에 Docker 설치
+- 최신 게임 서버 코드 다운로드
+- EC2 공인 IP에 맞춘 `sslip.io` 주소 생성
+- 로그인 비밀번호와 세션 암호키를 서버 내부 설정 파일에 저장
+- 게임 서버와 HTTPS 프록시 실행
+- HTTPS 상태 확인
+
+현재 공인 IP가 `3.107.160.0`이면 서버 주소는 `https://3-107-160-0.sslip.io`가 됩니다. 마지막에 `설치 완료!`와 상태 확인 주소가 출력되면 3번은 건너뛰어도 됩니다.
+
+### 수동 설치
 
 EC2에 SSH로 접속한 뒤 Docker Engine과 Docker Compose 플러그인을 설치하고, 이 GitHub 저장소를 내려받습니다. 프로젝트 폴더에서 설정 예시를 실제 설정 파일로 복사합니다.
 
@@ -55,7 +74,7 @@ cp deploy/aws/aws.env.example deploy/aws/aws.env
 
 설정 파일은 Git에 올라가지 않습니다.
 
-## 3. 서버 시작
+## 3. 서버 시작(수동 설치 시)
 
 ```bash
 docker compose --env-file deploy/aws/aws.env -f compose.aws.yaml up -d --build
