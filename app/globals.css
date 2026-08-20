@@ -194,8 +194,10 @@ button { color: inherit; }
 .quantity-label > div { height: 46px; display: grid; grid-template-columns: 45px 1fr 45px; overflow: hidden; border: 1px solid #293850; border-radius: 9px; background: #08111f; }
 .quantity-label button { border: 0; background: #111d2f; color: #94a0b3; font-size: 17px; cursor: pointer; }
 .quantity-label input { min-width: 0; border: 0; border-right: 1px solid var(--line); border-left: 1px solid var(--line); outline: 0; background: transparent; color: white; text-align: center; font: 720 16px var(--font-geist-mono); }
+.quantity-label button:disabled, .quantity-label input:disabled { opacity: .28; cursor: not-allowed; }
 .quick-quantity { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin-top: 6px; }
 .quick-quantity button { padding: 6px 2px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255,255,255,.02); color: #7c899d; font-size: 8px; cursor: pointer; }
+.quick-quantity button:disabled { opacity: .3; cursor: not-allowed; }
 .order-total { padding: 13px 0 9px; }
 .trade-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .trade-actions button { min-height: 50px; border: 1px solid; border-radius: 9px; cursor: pointer; }
