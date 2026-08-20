@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 const serverDir = dirname(fileURLToPath(import.meta.url));
 const gameData = JSON.parse(readFileSync(resolve(serverDir, "../shared/game-data.json"), "utf8"));
 const { stocks, lastRound } = gameData;
+const defaultSeedMoney = 1000;
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
@@ -218,9 +219,28 @@ function setupGame(seeds) {
   }
   transaction(() => {
     db.exec("DELETE FROM holdings; DELETE FROM trades;");
-    db.prepare("UPDATE game_state SET round = 0, started = 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    db.prepare("UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
     const updateTeam = db.prepare("UPDATE teams SET seed_money = ?, cash = ? WHERE team_id = ?");
     seeds.forEach((seed, index) => updateTeam.run(seed, seed, index + 1));
+  });
+}
+
+function startGame() {
+  return transaction(() => {
+    const game = db.prepare("SELECT round, started FROM game_state WHERE id = 1").get();
+    if (!game) throw new HttpError(500, "게임 상태를 불러오지 못했습니다.");
+    if (game.started) throw new HttpError(409, "이미 게임이 시작되었습니다.");
+    db.prepare("UPDATE game_state SET round = 0, started = 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    return { round: 0, started: true };
+  });
+}
+
+function resetGame() {
+  transaction(() => {
+    db.exec("DELETE FROM holdings; DELETE FROM trades;");
+    db.prepare("UPDATE teams SET seed_money = ?, cash = ?").run(defaultSeedMoney, defaultSeedMoney);
+    db.prepare("UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
   });
 }
 
@@ -323,6 +343,17 @@ const server = createServer(async (request, response) => {
       if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
       const body = await readJson(request);
       setupGame(body.seeds);
+      sendJson(response, 200, { ok: true }, origin);
+      return;
+    }
+    if (pathname === "/api/game/start" && request.method === "POST") {
+      if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
+      sendJson(response, 200, startGame(), origin);
+      return;
+    }
+    if (pathname === "/api/game/reset" && request.method === "POST") {
+      if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
+      resetGame();
       sendJson(response, 200, { ok: true }, origin);
       return;
     }

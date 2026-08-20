@@ -104,10 +104,29 @@ test("shares staff and team state through the public game server and keeps it af
     });
     assert.equal(setup.status, 200);
 
+    const preparedSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const preparedData = await preparedSnapshot.json();
+    assert.equal(preparedData.game.started, false);
+    assert.equal(preparedData.game.round, 0);
+    assert.equal(preparedData.teams[1].seedMoney, 1100);
+
+    const team = await login(running.baseUrl, "1", teamPassword);
+    const blockedTrade = await api(running.baseUrl, "/api/game/trade", {
+      method: "POST",
+      token: team.token,
+      body: { ticker: "IMMU", action: "buy", quantity: 1 },
+    });
+    assert.equal(blockedTrade.status, 400);
+
+    const deniedStart = await api(running.baseUrl, "/api/game/start", { method: "POST", token: team.token });
+    assert.equal(deniedStart.status, 403);
+
+    const start = await api(running.baseUrl, "/api/game/start", { method: "POST", token: staff.token });
+    assert.deepEqual(await start.json(), { round: 0, started: true });
+
     const round = await api(running.baseUrl, "/api/game/round", { method: "POST", token: staff.token });
     assert.deepEqual(await round.json(), { round: 1 });
 
-    const team = await login(running.baseUrl, "1", teamPassword);
     const trade = await api(running.baseUrl, "/api/game/trade", {
       method: "POST",
       token: team.token,
@@ -136,6 +155,28 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(persistedData.game.round, 1);
     assert.equal(persistedData.teams[0].holdings.IMMU, 2);
     assert.equal(persistedData.teams[0].cash, 702);
+
+    const deniedReset = await api(running.baseUrl, "/api/game/reset", { method: "POST", token: team.token });
+    assert.equal(deniedReset.status, 403);
+
+    const reset = await api(running.baseUrl, "/api/game/reset", { method: "POST", token: staff.token });
+    assert.deepEqual(await reset.json(), { ok: true });
+
+    const resetSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const resetData = await resetSnapshot.json();
+    assert.equal(resetData.game.started, false);
+    assert.equal(resetData.game.round, 0);
+    assert.equal(resetData.teams[0].seedMoney, 1000);
+    assert.equal(resetData.teams[0].cash, 1000);
+    assert.deepEqual(resetData.teams[0].holdings, {});
+    assert.equal(resetData.teams[0].trades.length, 0);
+
+    await stopServer(running.child);
+    running = await startServer(port, dataDir);
+    const persistedReset = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const persistedResetData = await persistedReset.json();
+    assert.equal(persistedResetData.game.started, false);
+    assert.equal(persistedResetData.teams[0].trades.length, 0);
   } finally {
     if (running) await stopServer(running.child).catch(() => undefined);
     await rm(dataDir, { recursive: true, force: true });

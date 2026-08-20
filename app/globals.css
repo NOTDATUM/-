@@ -39,6 +39,7 @@ button { color: inherit; }
 .market-center strong { margin-left: 3px; padding-left: 12px; border-left: 1px solid var(--line); color: #cbd5e4; font-family: var(--font-geist-sans); letter-spacing: 0; }
 .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 12px var(--lime); animation: pulse 1.8s ease-in-out infinite; }
 .status-dot.closed { background: var(--red); box-shadow: 0 0 12px var(--red); animation: none; }
+.status-dot.pending { background: var(--cyan); box-shadow: 0 0 12px var(--cyan); animation: pulse 2.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
 .account-actions { justify-self: end; display: flex; align-items: center; gap: 12px; }
 .account-actions > span { color: #78869c; font: 620 9px var(--font-geist-mono); letter-spacing: .08em; }
@@ -100,12 +101,16 @@ button { color: inherit; }
 .seed-grid input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: white; padding: 0 10px; text-align: right; font: 720 16px var(--font-geist-mono); }
 .seed-grid em { padding-right: 10px; color: #69768d; font: 600 9px var(--font-geist-mono); font-style: normal; }
 .seed-actions { display: flex; justify-content: center; gap: 9px; margin-top: 24px; }
-.primary-button, .secondary-button { min-height: 45px; border-radius: 9px; padding: 0 18px; font-size: 11px; font-weight: 760; cursor: pointer; }
+.seed-actions button { min-width: 190px; }
+.primary-button, .secondary-button, .danger-button { min-height: 45px; border-radius: 9px; padding: 0 18px; font-size: 11px; font-weight: 760; cursor: pointer; }
 .primary-button { min-width: 230px; border: 1px solid var(--lime); background: var(--lime); color: #09110c; }
 .primary-button span { float: right; margin-left: 18px; }
-.primary-button:disabled { opacity: .4; cursor: not-allowed; }
+.primary-button:disabled, .secondary-button:disabled, .danger-button:disabled { opacity: .4; cursor: not-allowed; }
 .secondary-button { border: 1px solid var(--line); background: rgba(255,255,255,.025); color: #9aa7ba; }
 .secondary-button:hover { border-color: rgba(255,255,255,.26); color: white; }
+.danger-button { border: 1px solid rgba(255,112,137,.34); background: rgba(255,112,137,.07); color: #ff93a6; }
+.danger-button:hover { border-color: rgba(255,112,137,.68); background: rgba(255,112,137,.13); color: #ffd4dc; }
+.setup-success { max-width: 620px; margin: 18px auto -6px; padding: 10px 14px; border: 1px solid rgba(183,243,76,.24); border-radius: 9px; background: rgba(183,243,76,.07); color: #c9f782; text-align: center; font-size: 10px; }
 .reset-warning { text-align: center; color: #5d697e; font-size: 9px; }
 
 .team-round-band { min-height: 150px; display: grid; grid-template-columns: minmax(360px,.8fr) minmax(570px,1.2fr); align-items: center; gap: 50px; padding: 25px 2.5vw; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, rgba(19,31,51,.65), rgba(8,14,24,.25)); }
@@ -322,6 +327,7 @@ button { color: inherit; }
   .stock-selector { grid-template-columns: 1fr; }
   .seed-grid { grid-template-columns: 1fr; }
   .seed-actions { flex-direction: column; }
+  .seed-actions button { width: 100%; min-width: 0; }
   .primary-button { width: 100%; min-width: 0; }
   .chart-legend.staff { grid-template-columns: repeat(2,1fr); }
   .mini-chart-grid { grid-template-columns: 1fr; }

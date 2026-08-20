@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   const statements = [
     db.prepare("DELETE FROM holdings"),
     db.prepare("DELETE FROM trades"),
-    db.prepare("UPDATE game_state SET round = 0, started = 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1"),
+    db.prepare("UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1"),
   ];
   seeds.forEach((seed, index) => statements.push(db.prepare("UPDATE teams SET seed_money = ?, cash = ? WHERE team_id = ?").bind(seed, seed, index + 1)));
   await db.batch(statements);
