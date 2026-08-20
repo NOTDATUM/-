@@ -13,19 +13,19 @@ export async function POST(request: Request) {
   const { staffPassword, teamPassword } = getRuntimeSecrets();
   if (id === "staff" && password === staffPassword) {
     const session = { role: "staff" as const, teamId: null };
-    await setSession(session);
+    await setSession(session, request);
     return Response.json({ session });
   }
   const teamId = Number(id);
   if (/^\d{1,2}$/.test(id) && teamId >= 1 && teamId <= 12 && password === teamPassword) {
     const session = { role: "team" as const, teamId };
-    await setSession(session);
+    await setSession(session, request);
     return Response.json({ session });
   }
   return Response.json({ error: "아이디 또는 비밀번호가 올바르지 않습니다." }, { status: 401 });
 }
 
-export async function DELETE() {
-  await clearSession();
+export async function DELETE(request: Request) {
+  await clearSession(request);
   return Response.json({ ok: true });
 }

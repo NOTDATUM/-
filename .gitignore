@@ -39,6 +39,7 @@ yarn-error.log*
 next-env.d.ts
 /dist/
 /github-pages-dist/
+/.lan-data/
 /.wrangler/
 /outputs/
 /work/

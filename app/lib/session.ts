@@ -36,18 +36,28 @@ export async function readSession(): Promise<GameSession | null> {
   return { role: "team", teamId };
 }
 
-export async function setSession(session: GameSession) {
+function isSecureRequest(request: Request) {
+  return new URL(request.url).protocol === "https:";
+}
+
+export async function setSession(session: GameSession, request: Request) {
   const store = await cookies();
   store.set(COOKIE_NAME, await createSessionToken(session), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isSecureRequest(request),
     path: "/",
     maxAge: 60 * 60 * 12,
   });
 }
 
-export async function clearSession() {
+export async function clearSession(request: Request) {
   const store = await cookies();
-  store.set(COOKIE_NAME, "", { httpOnly: true, sameSite: "lax", path: "/", maxAge: 0 });
+  store.set(COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isSecureRequest(request),
+    path: "/",
+    maxAge: 0,
+  });
 }
