@@ -175,9 +175,16 @@ function StockChart({ stock, round }: { stock: Stock; round: number }) {
     };
 
     paint();
-    const observer = new ResizeObserver(paint);
-    observer.observe(canvas);
-    return () => observer.disconnect();
+    let frame = 0;
+    const handleResize = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(paint);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", handleResize);
+    };
   }, [stock, round]);
 
   return <canvas className="stock-chart" ref={canvasRef} aria-label={`${stock.name} 가격 차트`} />;
