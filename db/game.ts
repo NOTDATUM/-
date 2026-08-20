@@ -38,9 +38,13 @@ export async function ensureGameSchema() {
     db.prepare("CREATE INDEX IF NOT EXISTS trades_team_id_idx ON trades (team_id, id DESC)"),
   ]);
 
-  const seeds = [db.prepare("INSERT OR IGNORE INTO game_state (id, round, started) VALUES (1, 0, 0)")];
-  for (let team = 1; team <= 12; team += 1) {
-    seeds.push(db.prepare("INSERT OR IGNORE INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)").bind(team));
+  await db.prepare("INSERT OR IGNORE INTO game_state (id, round, started) VALUES (1, 0, 0)").run();
+  const existing = await db.prepare("SELECT COUNT(*) AS count FROM teams").first<{ count: number }>();
+  if (!existing?.count) {
+    const seeds = [];
+    for (let team = 1; team <= 12; team += 1) {
+      seeds.push(db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)").bind(team));
+    }
+    await db.batch(seeds);
   }
-  await db.batch(seeds);
 }

@@ -32,7 +32,7 @@ export async function readSession(): Promise<GameSession | null> {
   if (payload === "staff") return { role: "staff", teamId: null };
   const match = payload.match(/^team:(\d{1,2})$/);
   const teamId = match ? Number(match[1]) : 0;
-  if (teamId < 1 || teamId > 12) return null;
+  if (teamId < 1 || teamId > 30) return null;
   return { role: "team", teamId };
 }
 

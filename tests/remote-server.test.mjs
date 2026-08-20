@@ -96,7 +96,7 @@ test("shares staff and team state through the public game server and keeps it af
     const staff = await login(running.baseUrl, "staff", staffPassword);
     assert.deepEqual(staff.session, { role: "staff", teamId: null });
 
-    const seeds = Array.from({ length: 12 }, (_, index) => 1000 + index * 100);
+    const seeds = Array.from({ length: 5 }, (_, index) => 1000 + index * 100);
     const setup = await api(running.baseUrl, "/api/game/setup", {
       method: "POST",
       token: staff.token,
@@ -108,7 +108,14 @@ test("shares staff and team state through the public game server and keeps it af
     const preparedData = await preparedSnapshot.json();
     assert.equal(preparedData.game.started, false);
     assert.equal(preparedData.game.round, 0);
+    assert.equal(preparedData.teams.length, 5);
     assert.equal(preparedData.teams[1].seedMoney, 1100);
+
+    const removedTeamLogin = await api(running.baseUrl, "/api/auth", {
+      method: "POST",
+      body: { id: "6", password: teamPassword },
+    });
+    assert.equal(removedTeamLogin.status, 401);
 
     const team = await login(running.baseUrl, "1", teamPassword);
     const blockedTrade = await api(running.baseUrl, "/api/game/trade", {
@@ -166,6 +173,7 @@ test("shares staff and team state through the public game server and keeps it af
     const resetData = await resetSnapshot.json();
     assert.equal(resetData.game.started, false);
     assert.equal(resetData.game.round, 0);
+    assert.equal(resetData.teams.length, 5);
     assert.equal(resetData.teams[0].seedMoney, 1000);
     assert.equal(resetData.teams[0].cash, 1000);
     assert.deepEqual(resetData.teams[0].holdings, {});
@@ -176,6 +184,7 @@ test("shares staff and team state through the public game server and keeps it af
     const persistedReset = await api(running.baseUrl, "/api/game", { token: staff.token });
     const persistedResetData = await persistedReset.json();
     assert.equal(persistedResetData.game.started, false);
+    assert.equal(persistedResetData.teams.length, 5);
     assert.equal(persistedResetData.teams[0].trades.length, 0);
   } finally {
     if (running) await stopServer(running.child).catch(() => undefined);

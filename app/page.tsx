@@ -11,6 +11,8 @@ type Snapshot = { session: Session; game: { round: number; started: boolean; upd
 
 const money = new Intl.NumberFormat("ko-KR");
 const MAX_ORDER_QUANTITY = 1_000_000;
+const DEFAULT_TEAM_COUNT = 12;
+const MAX_TEAM_COUNT = 30;
 
 function clampOrderQuantity(value: number, maximum: number) {
   if (maximum < 1) return 0;
@@ -65,8 +67,9 @@ function niceScaleStep(value: number) {
   return niceFraction * magnitude;
 }
 
-function getAllStocksViewport(round: number): ChartViewport {
-  const values = stocks.flatMap((stock) => stock.prices
+function getAllStocksViewport(round: number, selectedTicker: string | null): ChartViewport {
+  const visibleStocks = selectedTicker ? stocks.filter((stock) => stock.ticker === selectedTicker) : stocks;
+  const values = visibleStocks.flatMap((stock) => stock.prices
     .slice(0, round + 1)
     .filter((price): price is number => price !== null));
   if (!values.length || Math.max(...values) - Math.min(...values) < 1) {
@@ -85,11 +88,12 @@ function getAllStocksViewport(round: number): ChartViewport {
   };
 }
 
-function AllStocksChart({ round, compact = false }: { round: number; compact?: boolean }) {
+function AllStocksChart({ round, compact = false, selectedTicker = null }: { round: number; compact?: boolean; selectedTicker?: string | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<ChartViewport | null>(null);
   const previousRoundRef = useRef<number | null>(null);
-  const targetViewport = useMemo(() => getAllStocksViewport(round), [round]);
+  const targetViewport = useMemo(() => getAllStocksViewport(round, selectedTicker), [round, selectedTicker]);
+  const visibleStocks = useMemo(() => selectedTicker ? stocks.filter((stock) => stock.ticker === selectedTicker) : stocks, [selectedTicker]);
 
   const draw = useCallback((canvas: HTMLCanvasElement, viewport: ChartViewport, reveal: number) => {
     const prepared = prepareCanvas(canvas);
@@ -123,7 +127,7 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
       }
     }
 
-    stocks.forEach((stock) => {
+    visibleStocks.forEach((stock) => {
       const points = stock.prices
         .map((price, index) => ({ index, value: price }))
         .filter((point) => point.index <= round && point.value !== null) as Array<{ index: number; value: number }>;
@@ -163,7 +167,7 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
       context.fill();
       context.restore();
     });
-  }, [round, compact]);
+  }, [round, compact, visibleStocks]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -173,7 +177,10 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
     const roundChanged = previousRound !== null && previousRound !== round;
     const revealPoint = roundChanged && previousRound !== null && round > previousRound;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const duration = roundChanged && !reducedMotion ? 950 : 0;
+    const viewportChanged = Math.abs(from.min - targetViewport.min) > .01
+      || Math.abs(from.max - targetViewport.max) > .01
+      || Math.abs(from.xMax - targetViewport.xMax) > .01;
+    const duration = (roundChanged || viewportChanged) && !reducedMotion ? 950 : 0;
     const startedAt = performance.now();
     let animationFrame = 0;
     let resizeFrame = 0;
@@ -206,8 +213,8 @@ function AllStocksChart({ round, compact = false }: { round: number; compact?: b
   }, [draw, round, targetViewport]);
 
   return <div className="all-chart-shell">
-    <canvas ref={ref} className={compact ? "all-chart compact" : "all-chart"} aria-label={`전체 종목 실제 주가 차트, 자동 축 ${targetViewport.min} BE에서 ${targetViewport.max} BE`} />
-    {!compact && <span key={round} className="chart-scale-pill">AUTO SCALE · {targetViewport.min}–{targetViewport.max} BE</span>}
+    <canvas ref={ref} className={compact ? "all-chart compact" : "all-chart"} aria-label={`${selectedTicker ?? "전체 종목"} 실제 주가 차트, 자동 축 ${targetViewport.min} BE에서 ${targetViewport.max} BE`} />
+    {!compact && <span key={`${round}-${selectedTicker ?? "all"}`} className="chart-scale-pill">{selectedTicker ?? "ALL"} · AUTO SCALE · {targetViewport.min}–{targetViewport.max} BE</span>}
   </div>;
 }
 
@@ -303,7 +310,7 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
         {error && <div className="form-error">{error}</div>}
         <button disabled={busy || !id || !password}>{busy ? "확인 중..." : "시장 입장"}<span>→</span></button>
       </form>
-      <div className="login-hint"><div><strong>참가 조</strong><span>ID 1–12 · 공통 비밀번호</span></div><div><strong>운영 스태프</strong><span>스태프 전용 계정</span></div></div>
+      <div className="login-hint"><div><strong>참가 조</strong><span>스태프가 설정한 조 번호 · 공통 비밀번호</span></div><div><strong>운영 스태프</strong><span>스태프 전용 계정</span></div></div>
     </section>
     <p className="fiction-note">모든 기업과 사건은 레크리에이션을 위한 가상 설정입니다.</p>
   </main>;
@@ -326,7 +333,9 @@ function WaitingScreen({ session, onLogout }: { session: Session; onLogout: () =
 }
 
 function SeedSetup({ initial, onStarted }: { initial?: TeamView[] | null; onStarted: () => void | Promise<void> }) {
-  const [seeds, setSeeds] = useState(() => Array.from({ length: 12 }, (_, index) => initial?.find((team) => team.teamId === index + 1)?.seedMoney ?? 1000));
+  const [seeds, setSeeds] = useState(() => initial?.length
+    ? [...initial].sort((left, right) => left.teamId - right.teamId).map((team) => team.seedMoney)
+    : Array.from({ length: DEFAULT_TEAM_COUNT }, () => 1000));
   const [busy, setBusy] = useState<"save" | "start" | null>(null);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -356,14 +365,32 @@ function SeedSetup({ initial, onStarted }: { initial?: TeamView[] | null; onStar
     finally { setBusy(null); }
   };
   const updateSeeds = (next: number[]) => { setSeeds(next); setSaved(false); };
-  const setAll = (value: number) => updateSeeds(Array.from({ length: 12 }, () => value));
-  return <section className="seed-page"><div className="seed-hero"><span className="eyebrow">INITIAL CAPITAL SETUP</span><h1>조별 시드머니 설정</h1><p>각 조의 초기 BE Coin을 확인한 뒤 저장하세요. 저장만으로는 참가자 화면이 열리지 않으며, 스태프가 게임 시작을 눌러야 기준가가 공개됩니다.</p><div className="seed-presets"><button onClick={() => setAll(1000)}>전체 1,000 BE</button><button onClick={() => setAll(1500)}>전체 1,500 BE</button><button onClick={() => setAll(2000)}>전체 2,000 BE</button></div></div><div className="seed-grid">{seeds.map((seed, index) => <label key={index}><span><i>{index + 1}</i>{index + 1}조</span><div><input type="number" min="1" step="100" value={seed} onChange={(event) => updateSeeds(seeds.map((value, itemIndex) => itemIndex === index ? Math.max(1, Math.floor(Number(event.target.value) || 1)) : value))} /><em>BE</em></div></label>)}</div>{error && <div className="form-error wide">{error}</div>}{saved && !error && <div className="setup-success" role="status">시드머니가 저장되었습니다. 참가자들은 아직 대기 중입니다.</div>}<div className="seed-actions"><button className="secondary-button" disabled={busy !== null} onClick={save}>{busy === "save" ? "저장 중..." : "시드머니 저장"}</button><button className="primary-button" disabled={busy !== null} onClick={start}>{busy === "start" ? "게임 시작 중..." : "게임 시작 · 기준가 공개"}<span>→</span></button></div><p className="reset-warning">게임을 시작하면 1~12조의 화면이 약 2초 안에 거래 화면으로 전환됩니다.</p></section>;
+  const setAll = (value: number) => updateSeeds(seeds.map(() => value));
+  const addTeam = () => {
+    if (seeds.length >= MAX_TEAM_COUNT) return;
+    updateSeeds([...seeds, 1000]);
+  };
+  const removeTeam = () => {
+    if (seeds.length <= 1) return;
+    updateSeeds(seeds.slice(0, -1));
+  };
+  return <section className="seed-page"><div className="seed-hero"><span className="eyebrow">INITIAL CAPITAL SETUP</span><h1>조별 시드머니 설정</h1><p>참가 조 수와 각 조의 초기 BE Coin을 확인한 뒤 저장하세요. 저장만으로는 참가자 화면이 열리지 않으며, 스태프가 게임 시작을 눌러야 기준가가 공개됩니다.</p><div className="team-count-control"><div><span>참가 조 구성</span><strong>현재 {seeds.length}개 조</strong><small>로그인 ID는 1부터 {seeds.length}까지 자동으로 배정됩니다.</small></div><div><button disabled={busy !== null || seeds.length <= 1} onClick={removeTeam}>− 마지막 조 삭제</button><button disabled={busy !== null || seeds.length >= MAX_TEAM_COUNT} onClick={addTeam}>＋ 조 추가</button></div></div><div className="seed-presets"><button onClick={() => setAll(1000)}>전체 1,000 BE</button><button onClick={() => setAll(1500)}>전체 1,500 BE</button><button onClick={() => setAll(2000)}>전체 2,000 BE</button></div></div><div className="seed-grid">{seeds.map((seed, index) => <label key={index}><span><i>{index + 1}</i>{index + 1}조</span><div><input type="number" min="1" step="100" value={seed} onChange={(event) => updateSeeds(seeds.map((value, itemIndex) => itemIndex === index ? Math.max(1, Math.floor(Number(event.target.value) || 1)) : value))} /><em>BE</em></div></label>)}</div>{error && <div className="form-error wide">{error}</div>}{saved && !error && <div className="setup-success" role="status">{seeds.length}개 조의 구성과 시드머니가 저장되었습니다. 참가자들은 아직 대기 중입니다.</div>}<div className="seed-actions"><button className="secondary-button" disabled={busy !== null} onClick={save}>{busy === "save" ? "저장 중..." : "구성·시드머니 저장"}</button><button className="primary-button" disabled={busy !== null} onClick={start}>{busy === "start" ? "게임 시작 중..." : "게임 시작 · 기준가 공개"}<span>→</span></button></div><p className="reset-warning">게임을 시작하면 1~{seeds.length}조의 화면이 약 2초 안에 거래 화면으로 전환됩니다.</p></section>;
+}
+
+function StockProfile({ stock }: { stock: Stock }) {
+  return <section className="stock-profile" style={{ "--stock-accent": stock.color } as React.CSSProperties}>
+    <div className="stock-profile-intro"><span className="eyebrow">COMPANY PROFILE</span><h3>{stock.sector}</h3><p>{stock.description}</p></div>
+    <div className="revenue-block"><span>주요 수익원</span><div>{stock.revenueStreams.map((stream) => <em key={stream}>{stream}</em>)}</div></div>
+    <div className="stock-profile-balance"><article className="growth"><span>GROWTH DRIVER</span><h4>성장 동력</h4><p>{stock.strength}</p></article><article className="risk"><span>CORE RISK</span><h4>핵심 리스크</h4><p>{stock.risk}</p></article></div>
+    <div className="sensitivity-row"><span>사업 민감도</span><div>{Object.entries(stock.sensitivities).map(([label, value]) => <em key={label}><small>{label}</small><strong>{value}</strong></em>)}</div></div>
+  </section>;
 }
 
 function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; refresh: () => Promise<void>; onLogout: () => void }) {
   const team = snapshot.team!;
   const round = snapshot.game.round;
   const [ticker, setTicker] = useState("IMMU");
+  const [marketTicker, setMarketTicker] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
@@ -379,20 +406,24 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
   const maxSellQuantity = tradable ? Math.min(MAX_ORDER_QUANTITY, owned) : 0;
   const maxOrderQuantity = Math.max(maxBuyQuantity, maxSellQuantity);
   const minOrderQuantity = maxOrderQuantity > 0 ? 1 : 0;
-  useEffect(() => { setQuantity((value) => clampOrderQuantity(value, maxOrderQuantity)); }, [maxOrderQuantity]);
+  const orderQuantity = clampOrderQuantity(quantity, maxOrderQuantity);
   useEffect(() => { if (!toast) return; const timer = setTimeout(() => setToast(""), 2400); return () => clearTimeout(timer); }, [toast]);
   const trade = async (action: "buy" | "sell") => {
     setBusy(true);
     try {
-      const response = await apiFetch("/api/game/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker, action, quantity }) });
+      const response = await apiFetch("/api/game/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker, action, quantity: orderQuantity }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "주문을 처리하지 못했습니다.");
-      setToast(`${stock.name} ${quantity}주를 ${action === "buy" ? "매수" : "매도"}했습니다.`);
+      setToast(`${stock.name} ${orderQuantity}주를 ${action === "buy" ? "매수" : "매도"}했습니다.`);
       setQuantity(1); await refresh();
     } catch (caught) { setToast(caught instanceof Error ? caught.message : "주문을 처리하지 못했습니다."); }
     finally { setBusy(false); }
   };
-  return <main className="app-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} /><section className="team-round-band"><div><span className="eyebrow">CURRENT MARKET EVENT</span><h1>{rounds[round].theme}</h1><p>{rounds[round].detail}</p></div><RoundProgress round={round} /></section><section className="team-workspace"><div className="panel all-market-panel"><div className="panel-title"><div><span className="eyebrow">ALL STOCKS · ACTUAL PRICE</span><h2>전체 종목 흐름</h2></div><span>라운드별 실제 주가 · BE</span></div><AllStocksChart round={round} /><div className="chart-legend">{stocks.map((item) => <button className={ticker === item.ticker ? "selected" : ""} onClick={() => setTicker(item.ticker)} key={item.ticker}><i style={{ background: item.color }} />{item.ticker}</button>)}</div></div><aside className="panel team-account-panel"><span className="eyebrow">TEAM {team.teamId} PORTFOLIO</span><h2>{team.teamId}조 투자 계좌</h2><div className="hero-asset"><span>총 평가자산</span><strong>{money.format(team.totalAsset)} <em>BE</em></strong><small className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)} BE · {team.seedMoney ? `${pnl >= 0 ? "+" : ""}${((pnl / team.seedMoney) * 100).toFixed(1)}%` : "0%"}</small></div><div className="account-split"><div><span>보유 현금</span><strong>{money.format(team.cash)}</strong></div><div><span>주식 평가액</span><strong>{money.format(stockValue)}</strong></div><div><span>시드머니</span><strong>{money.format(team.seedMoney)}</strong></div></div><div className="holdings-mini"><span>보유 종목</span>{Object.entries(team.holdings).filter(([, shares]) => shares > 0).map(([holdingTicker, shares]) => { const item = stocks.find((value) => value.ticker === holdingTicker)!; return <button key={holdingTicker} onClick={() => setTicker(holdingTicker)}><i style={{ background: item.color }} /><strong>{item.name}</strong><em>{shares}주</em></button>; })}{Object.values(team.holdings).every((shares) => shares <= 0) && <p>아직 보유한 주식이 없습니다.</p>}</div></aside><div className="panel selected-stock-panel"><div className="stock-detail-head"><div><span className="stock-color-bar" style={{ background: stock.color }} /><div><span>{stock.ticker} · {stock.field}</span><h2>{stock.name}</h2><p>{stock.english}</p></div></div><div>{price === null ? <><strong className="unlisted">상장 전</strong><span>3R 신규상장</span></> : <><strong>{money.format(price)} <em>BE</em></strong><span className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "기준가" : `${change >= 0 ? "▲" : "▼"} ${Math.abs(change).toFixed(0)}%`}</span></>}</div></div><StockChart stock={stock} round={round} /><div className="stock-selector">{stocks.map((item) => <button key={item.ticker} className={item.ticker === ticker ? "active" : ""} onClick={() => setTicker(item.ticker)}><i style={{ background: item.color }} /><span>{item.name}</span><strong>{getStockPrice(item.ticker, round) === null ? "거래불가" : `${money.format(getStockPrice(item.ticker, round)!)} BE`}</strong></button>)}</div></div><aside className="right-stack"><section className="panel order-panel"><div className="panel-title"><div><span className="eyebrow">ORDER TICKET</span><h2>주문하기</h2></div><span className={tradable ? "market-open-tag" : "market-closed-tag"}>{tradable ? "거래 가능" : "거래 불가"}</span></div><div className="order-stock"><div><i style={{ background: stock.color }} /><span><strong>{stock.name}</strong><small>{stock.ticker}</small></span></div><strong>{price === null ? "—" : `${money.format(price)} BE`}</strong></div><div className="position-row"><span>현재 보유</span><strong>{owned}주</strong></div><label className="quantity-label"><span>주문 수량 <small>매수 {maxBuyQuantity}주 · 매도 {maxSellQuantity}주</small></span><div><button aria-label="수량 1주 줄이기" disabled={busy || quantity <= minOrderQuantity} onClick={() => setQuantity((value) => clampOrderQuantity(value - 1, maxOrderQuantity))}>−</button><input aria-label="주문 수량" value={quantity} min={minOrderQuantity} max={maxOrderQuantity} disabled={busy || maxOrderQuantity < 1} type="number" onChange={(event) => setQuantity(clampOrderQuantity(Number(event.target.value), maxOrderQuantity))} /><button aria-label="수량 1주 늘리기" disabled={busy || quantity >= maxOrderQuantity} onClick={() => setQuantity((value) => clampOrderQuantity(value + 1, maxOrderQuantity))}>＋</button></div></label><div className="quick-quantity">{[1, 5, 10].map((value) => <button disabled={busy || quantity >= maxOrderQuantity} onClick={() => setQuantity((current) => clampOrderQuantity(current + value, maxOrderQuantity))} key={value}>+{value}주</button>)}<button disabled={busy || maxOrderQuantity < 1 || quantity >= maxOrderQuantity} onClick={() => setQuantity(maxOrderQuantity)}>최대</button></div><div className="order-total"><span>예상 주문금액</span><strong>{price === null || quantity < 1 ? "—" : `${money.format(price * quantity)} BE`}</strong></div><div className="trade-actions"><button className="sell-button" disabled={busy || !tradable || quantity < 1 || owned < quantity} onClick={() => trade("sell")}><span>매도</span><small>SELL</small></button><button className="buy-button" disabled={busy || !tradable || quantity < 1 || price === null || team.cash < price * quantity} onClick={() => trade("buy")}><span>매수</span><small>BUY</small></button></div></section><section className="panel recent-panel"><div className="panel-title"><div><span className="eyebrow">RECENT ORDERS</span><h2>최근 거래</h2></div></div><div className="recent-list">{team.trades.slice(0, 5).map((tradeItem) => { const item = stocks.find((value) => value.ticker === tradeItem.ticker)!; return <div key={tradeItem.id}><span className={tradeItem.action}>{tradeItem.action === "buy" ? "매수" : "매도"}</span><div><strong>{item.name}</strong><small>R{tradeItem.round} · {tradeItem.quantity}주 × {money.format(tradeItem.price)}</small></div><em>{tradeItem.action === "buy" ? "−" : "+"}{money.format(tradeItem.quantity * tradeItem.price)}</em></div>; })}{team.trades.length === 0 && <p>아직 거래 내역이 없습니다.</p>}</div></section></aside></section>{toast && <div className="toast">{toast}</div>}</main>;
+  const toggleMarketTicker = (nextTicker: string) => {
+    setMarketTicker((current) => current === nextTicker ? null : nextTicker);
+    setTicker(nextTicker);
+  };
+  return <main className="app-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} /><section className="team-round-band"><div><span className="eyebrow">CURRENT MARKET EVENT</span><h1>{rounds[round].theme}</h1><p>{rounds[round].detail}</p></div><RoundProgress round={round} /></section><section className="team-workspace"><div className="panel all-market-panel"><div className="panel-title"><div><span className="eyebrow">ALL STOCKS · ACTUAL PRICE</span><h2>전체 종목 흐름</h2></div><span>{marketTicker ? `${marketTicker} 단독 보기` : "라운드별 실제 주가 · BE"}</span></div><AllStocksChart round={round} selectedTicker={marketTicker} /><div className="chart-filter-note">종목명을 누르면 해당 주식만 표시되고, 같은 종목을 한 번 더 누르면 전체 차트로 돌아옵니다.</div><div className="chart-legend">{stocks.map((item) => <button aria-pressed={marketTicker === item.ticker} className={marketTicker === item.ticker ? "selected" : ""} onClick={() => toggleMarketTicker(item.ticker)} key={item.ticker}><i style={{ background: item.color }} />{item.ticker}</button>)}</div></div><aside className="panel team-account-panel"><span className="eyebrow">TEAM {team.teamId} PORTFOLIO</span><h2>{team.teamId}조 투자 계좌</h2><div className="hero-asset"><span>총 평가자산</span><strong>{money.format(team.totalAsset)} <em>BE</em></strong><small className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)} BE · {team.seedMoney ? `${pnl >= 0 ? "+" : ""}${((pnl / team.seedMoney) * 100).toFixed(1)}%` : "0%"}</small></div><div className="account-split"><div><span>보유 현금</span><strong>{money.format(team.cash)}</strong></div><div><span>주식 평가액</span><strong>{money.format(stockValue)}</strong></div><div><span>시드머니</span><strong>{money.format(team.seedMoney)}</strong></div></div><div className="holdings-mini"><span>보유 종목</span>{Object.entries(team.holdings).filter(([, shares]) => shares > 0).map(([holdingTicker, shares]) => { const item = stocks.find((value) => value.ticker === holdingTicker)!; return <button key={holdingTicker} onClick={() => setTicker(holdingTicker)}><i style={{ background: item.color }} /><strong>{item.name}</strong><em>{shares}주</em></button>; })}{Object.values(team.holdings).every((shares) => shares <= 0) && <p>아직 보유한 주식이 없습니다.</p>}</div></aside><div className="panel selected-stock-panel"><div className="stock-detail-head"><div><span className="stock-color-bar" style={{ background: stock.color }} /><div><span>{stock.ticker} · {stock.field}</span><h2>{stock.name}</h2><p>{stock.english}</p></div></div><div>{price === null ? <><strong className="unlisted">상장 전</strong><span>3R 신규상장</span></> : <><strong>{money.format(price)} <em>BE</em></strong><span className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "기준가" : `${change >= 0 ? "▲" : "▼"} ${Math.abs(change).toFixed(0)}%`}</span></>}</div></div><StockChart stock={stock} round={round} /><div className="stock-selector">{stocks.map((item) => <button key={item.ticker} className={item.ticker === ticker ? "active" : ""} onClick={() => setTicker(item.ticker)}><i style={{ background: item.color }} /><span>{item.name}</span><strong>{getStockPrice(item.ticker, round) === null ? "거래불가" : `${money.format(getStockPrice(item.ticker, round)!)} BE`}</strong></button>)}</div><StockProfile stock={stock} /></div><aside className="right-stack"><section className="panel order-panel"><div className="panel-title"><div><span className="eyebrow">ORDER TICKET</span><h2>주문하기</h2></div><span className={tradable ? "market-open-tag" : "market-closed-tag"}>{tradable ? "거래 가능" : "거래 불가"}</span></div><div className="order-stock"><div><i style={{ background: stock.color }} /><span><strong>{stock.name}</strong><small>{stock.ticker}</small></span></div><strong>{price === null ? "—" : `${money.format(price)} BE`}</strong></div><div className="position-row"><span>현재 보유</span><strong>{owned}주</strong></div><label className="quantity-label"><span>주문 수량 <small>매수 {maxBuyQuantity}주 · 매도 {maxSellQuantity}주</small></span><div><button aria-label="수량 1주 줄이기" disabled={busy || orderQuantity <= minOrderQuantity} onClick={() => setQuantity(clampOrderQuantity(orderQuantity - 1, maxOrderQuantity))}>−</button><input aria-label="주문 수량" value={orderQuantity} min={minOrderQuantity} max={maxOrderQuantity} disabled={busy || maxOrderQuantity < 1} type="number" onChange={(event) => setQuantity(clampOrderQuantity(Number(event.target.value), maxOrderQuantity))} /><button aria-label="수량 1주 늘리기" disabled={busy || orderQuantity >= maxOrderQuantity} onClick={() => setQuantity(clampOrderQuantity(orderQuantity + 1, maxOrderQuantity))}>＋</button></div></label><div className="quick-quantity">{[1, 5, 10].map((value) => <button disabled={busy || orderQuantity >= maxOrderQuantity} onClick={() => setQuantity(clampOrderQuantity(orderQuantity + value, maxOrderQuantity))} key={value}>+{value}주</button>)}<button disabled={busy || maxOrderQuantity < 1 || orderQuantity >= maxOrderQuantity} onClick={() => setQuantity(maxOrderQuantity)}>최대</button></div><div className="order-total"><span>예상 주문금액</span><strong>{price === null || orderQuantity < 1 ? "—" : `${money.format(price * orderQuantity)} BE`}</strong></div><div className="trade-actions"><button className="sell-button" disabled={busy || !tradable || orderQuantity < 1 || owned < orderQuantity} onClick={() => trade("sell")}><span>매도</span><small>SELL</small></button><button className="buy-button" disabled={busy || !tradable || orderQuantity < 1 || price === null || team.cash < price * orderQuantity} onClick={() => trade("buy")}><span>매수</span><small>BUY</small></button></div></section><section className="panel recent-panel"><div className="panel-title"><div><span className="eyebrow">RECENT ORDERS</span><h2>최근 거래</h2></div></div><div className="recent-list">{team.trades.slice(0, 5).map((tradeItem) => { const item = stocks.find((value) => value.ticker === tradeItem.ticker)!; return <div key={tradeItem.id}><span className={tradeItem.action}>{tradeItem.action === "buy" ? "매수" : "매도"}</span><div><strong>{item.name}</strong><small>R{tradeItem.round} · {tradeItem.quantity}주 × {money.format(tradeItem.price)}</small></div><em>{tradeItem.action === "buy" ? "−" : "+"}{money.format(tradeItem.quantity * tradeItem.price)}</em></div>; })}{team.trades.length === 0 && <p>아직 거래 내역이 없습니다.</p>}</div></section></aside></section>{toast && <div className="toast">{toast}</div>}</main>;
 }
 
 function StaffTeamDetail({ team, round, onBack }: { team: TeamView; round: number; onBack: () => void }) {
@@ -405,6 +436,7 @@ function StaffDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; r
   const teams = useMemo(() => snapshot.teams ?? [], [snapshot.teams]);
   const round = snapshot.game.round;
   const [detailTeam, setDetailTeam] = useState<number | null>(null);
+  const [marketTicker, setMarketTicker] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const standings = useMemo(() => [...teams].sort((a, b) => b.totalAsset - a.totalAsset), [teams]);
   const advance = async () => {
@@ -428,7 +460,7 @@ function StaffDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; r
   };
   const selected = detailTeam ? teams.find((team) => team.teamId === detailTeam) : null;
   if (selected) return <main className="staff-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation /><StaffTeamDetail team={selected} round={round} onBack={() => setDetailTeam(null)} /></main>;
-  return <main className="staff-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation /><section className="staff-control-band"><div><span className="eyebrow">LIVE MARKET CONTROL</span><h1>{rounds[round].theme}</h1><p>{rounds[round].detail}</p></div><div className="staff-control-actions"><button className="danger-button" disabled={busy} onClick={reset}>게임 초기화</button><button className="primary-button" disabled={busy || round >= LAST_ROUND} onClick={advance}>{round >= LAST_ROUND ? "모든 라운드 종료" : `다음 라운드 공개 · R${round + 1}`}<span>→</span></button></div></section><section className="staff-presentation-grid"><div className="panel staff-market-panel"><div className="panel-title"><div><span className="eyebrow">ALL STOCKS · LIVE PRICE</span><h2>전체 주식시장</h2></div><div className="round-badge"><span>{round === 0 ? "OPEN" : `ROUND ${round}`}</span><strong>{round}/10</strong></div></div><AllStocksChart round={round} /><div className="chart-legend staff">{stocks.map((stock) => <span key={stock.ticker}><i style={{ background: stock.color }} />{stock.name}<strong>{getStockPrice(stock.ticker, round) === null ? "—" : money.format(getStockPrice(stock.ticker, round)!)}</strong></span>)}</div></div><aside className="panel staff-scoreboard"><div className="panel-title"><div><span className="eyebrow">TEAM ASSET BOARD</span><h2>조별 현재 총 자산</h2></div><span>클릭해 거래 확인</span></div><div className="scoreboard-list">{standings.map((team, index) => { const pnl = team.totalAsset - team.seedMoney; return <button key={team.teamId} onClick={() => setDetailTeam(team.teamId)}><i>{index + 1}</i><span><strong>{team.teamId}조</strong><small>현금 {money.format(team.cash)} · 거래 {team.trades.length}건</small></span><em>{money.format(team.totalAsset)} <small>BE</small><b className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)}</b></em></button>; })}</div></aside><section className="individual-market-section"><div className="individual-heading"><div><span className="eyebrow">INDIVIDUAL STOCKS</span><h2>종목별 가격 차트</h2></div><RoundProgress round={round} /></div><div className="mini-chart-grid">{stocks.map((stock) => { const price = getStockPrice(stock.ticker, round); const prior = round > 0 ? getStockPrice(stock.ticker, round - 1) : null; const change = price !== null && prior !== null ? ((price - prior) / prior) * 100 : null; return <article className="panel mini-stock-card" key={stock.ticker}><div><span><i style={{ background: stock.color }} />{stock.ticker}</span><strong>{stock.name}</strong></div><MiniQuote price={price} change={change} /><StockChart stock={stock} round={round} mini /></article>; })}</div></section></section></main>;
+  return <main className="staff-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation /><section className="staff-control-band"><div><span className="eyebrow">LIVE MARKET CONTROL</span><h1>{rounds[round].theme}</h1><p>{rounds[round].detail}</p></div><div className="staff-control-actions"><button className="danger-button" disabled={busy} onClick={reset}>게임 초기화</button><button className="primary-button" disabled={busy || round >= LAST_ROUND} onClick={advance}>{round >= LAST_ROUND ? "모든 라운드 종료" : `다음 라운드 공개 · R${round + 1}`}<span>→</span></button></div></section><section className="staff-presentation-grid"><div className="panel staff-market-panel"><div className="panel-title"><div><span className="eyebrow">ALL STOCKS · LIVE PRICE</span><h2>전체 주식시장</h2></div><div className="round-badge"><span>{round === 0 ? "OPEN" : `ROUND ${round}`}</span><strong>{round}/10</strong></div></div><AllStocksChart round={round} selectedTicker={marketTicker} /><div className="chart-filter-note staff-note">{marketTicker ? `${marketTicker} 단독 차트 · 같은 종목을 다시 누르면 전체 보기` : "종목을 누르면 단독 차트로 전환됩니다."}</div><div className="chart-legend staff">{stocks.map((stock) => <button aria-pressed={marketTicker === stock.ticker} className={marketTicker === stock.ticker ? "selected" : ""} onClick={() => setMarketTicker((current) => current === stock.ticker ? null : stock.ticker)} key={stock.ticker}><i style={{ background: stock.color }} />{stock.name}<strong>{getStockPrice(stock.ticker, round) === null ? "—" : money.format(getStockPrice(stock.ticker, round)!)}</strong></button>)}</div></div><aside className="panel staff-scoreboard"><div className="panel-title"><div><span className="eyebrow">TEAM ASSET BOARD</span><h2>조별 현재 총 자산</h2></div><span>클릭해 거래 확인</span></div><div className="scoreboard-list">{standings.map((team, index) => { const pnl = team.totalAsset - team.seedMoney; return <button key={team.teamId} onClick={() => setDetailTeam(team.teamId)}><i>{index + 1}</i><span><strong>{team.teamId}조</strong><small>현금 {money.format(team.cash)} · 거래 {team.trades.length}건</small></span><em>{money.format(team.totalAsset)} <small>BE</small><b className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)}</b></em></button>; })}</div></aside><section className="individual-market-section"><div className="individual-heading"><div><span className="eyebrow">INDIVIDUAL STOCKS</span><h2>종목별 가격 차트</h2></div><RoundProgress round={round} /></div><div className="mini-chart-grid">{stocks.map((stock) => { const price = getStockPrice(stock.ticker, round); const prior = round > 0 ? getStockPrice(stock.ticker, round - 1) : null; const change = price !== null && prior !== null ? ((price - prior) / prior) * 100 : null; return <article className="panel mini-stock-card" key={stock.ticker}><div><span><i style={{ background: stock.color }} />{stock.ticker}</span><strong>{stock.name}</strong></div><MiniQuote price={price} change={change} /><StockChart stock={stock} round={round} mini /></article>; })}</div></section></section></main>;
 }
 
 function MiniQuote({ price, change }: { price: number | null; change: number | null }) {

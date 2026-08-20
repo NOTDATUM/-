@@ -1,5 +1,6 @@
 import { clearSession, readSession, setSession } from "../../lib/session";
 import { getRuntimeSecrets } from "../../lib/config";
+import { ensureGameSchema, getGameDb } from "../../../db/game";
 
 export async function GET() {
   const session = await readSession();
@@ -17,7 +18,11 @@ export async function POST(request: Request) {
     return Response.json({ session });
   }
   const teamId = Number(id);
-  if (/^\d{1,2}$/.test(id) && teamId >= 1 && teamId <= 12 && password === teamPassword) {
+  await ensureGameSchema();
+  const configuredTeam = Number.isInteger(teamId) && teamId >= 1 && teamId <= 30
+    ? await getGameDb().prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").bind(teamId).first()
+    : null;
+  if (/^\d{1,2}$/.test(id) && configuredTeam && password === teamPassword) {
     const session = { role: "team" as const, teamId };
     await setSession(session, request);
     return Response.json({ session });

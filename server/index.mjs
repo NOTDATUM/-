@@ -9,6 +9,8 @@ const serverDir = dirname(fileURLToPath(import.meta.url));
 const gameData = JSON.parse(readFileSync(resolve(serverDir, "../shared/game-data.json"), "utf8"));
 const { stocks, lastRound } = gameData;
 const defaultSeedMoney = 1000;
+const defaultTeamCount = 12;
+const maxTeamCount = 30;
 
 function requiredEnv(name) {
   const value = process.env[name]?.trim();
@@ -73,7 +75,10 @@ db.exec(`
 `);
 
 const insertInitialTeam = db.prepare("INSERT OR IGNORE INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)");
-for (let teamId = 1; teamId <= 12; teamId += 1) insertInitialTeam.run(teamId);
+const configuredTeamCount = db.prepare("SELECT COUNT(*) AS count FROM teams").get().count;
+if (configuredTeamCount === 0) {
+  for (let teamId = 1; teamId <= defaultTeamCount; teamId += 1) insertInitialTeam.run(teamId);
+}
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -112,8 +117,9 @@ function readSession(request) {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!Number.isFinite(session.exp) || session.exp < Date.now()) return null;
     if (session.role === "staff" && session.teamId === null) return { role: "staff", teamId: null };
-    if (session.role === "team" && Number.isInteger(session.teamId) && session.teamId >= 1 && session.teamId <= 12) {
-      return { role: "team", teamId: session.teamId };
+    if (session.role === "team" && Number.isInteger(session.teamId) && session.teamId >= 1 && session.teamId <= maxTeamCount) {
+      const teamExists = db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(session.teamId);
+      if (teamExists) return { role: "team", teamId: session.teamId };
     }
   } catch {
     return null;
@@ -213,15 +219,17 @@ function gameSnapshot(session) {
 }
 
 function setupGame(seeds) {
-  if (!Array.isArray(seeds) || seeds.length !== 12
+  if (!Array.isArray(seeds) || seeds.length < 1 || seeds.length > maxTeamCount
     || seeds.some((value) => !Number.isInteger(value) || value < 1 || value > 100_000_000)) {
-    throw new HttpError(400, "1조부터 12조까지 올바른 시드머니를 입력해 주세요.");
+    throw new HttpError(400, `1개 이상 ${maxTeamCount}개 이하의 조와 올바른 시드머니를 입력해 주세요.`);
   }
   transaction(() => {
     db.exec("DELETE FROM holdings; DELETE FROM trades;");
     db.prepare("UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
-    const updateTeam = db.prepare("UPDATE teams SET seed_money = ?, cash = ? WHERE team_id = ?");
-    seeds.forEach((seed, index) => updateTeam.run(seed, seed, index + 1));
+    db.prepare("DELETE FROM teams").run();
+    const insertTeam = db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, ?, ?)");
+    seeds.forEach((seed, index) => insertTeam.run(index + 1, seed, seed));
+    db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
   });
 }
 
@@ -315,7 +323,9 @@ const server = createServer(async (request, response) => {
       let session = null;
       if (id === "staff" && safeEqualText(password, staffPassword)) session = { role: "staff", teamId: null };
       const teamId = Number(id);
-      if (/^\d{1,2}$/.test(id) && teamId >= 1 && teamId <= 12 && safeEqualText(password, teamPassword)) {
+      const teamExists = Number.isInteger(teamId) && teamId >= 1 && teamId <= maxTeamCount
+        && db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(teamId);
+      if (/^\d{1,2}$/.test(id) && teamExists && safeEqualText(password, teamPassword)) {
         session = { role: "team", teamId };
       }
       if (!session) throw new HttpError(401, "아이디 또는 비밀번호가 올바르지 않습니다.");

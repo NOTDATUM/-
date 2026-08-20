@@ -5,6 +5,12 @@ export type Stock = {
   name: string;
   english: string;
   field: string;
+  sector: string;
+  description: string;
+  revenueStreams: string[];
+  strength: string;
+  risk: string;
+  sensitivities: Record<string, string>;
   color: string;
   prices: Array<number | null>;
 };
