@@ -20,6 +20,8 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /생명과학부 모의주식시장/);
   assert.match(page, /모의주식시장 입장/);
   assert.match(page, /전체 주식시장/);
+  assert.match(page, /ALL STOCKS · ACTUAL PRICE/);
+  assert.doesNotMatch(page, /ALL STOCKS · INDEXED/);
   assert.match(page, /조별 현재 총 자산/);
   assert.match(page, /label: "10라운드"/);
   assert.match(server, /TEAM_PASSWORD/);
