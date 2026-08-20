@@ -111,6 +111,13 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(preparedData.teams.length, 5);
     assert.equal(preparedData.teams[1].seedMoney, 1100);
 
+    const updateFuturePrice = await api(running.baseUrl, "/api/game/prices", {
+      method: "POST",
+      token: staff.token,
+      body: { updates: [{ ticker: "IMMU", round: 2, price: 777 }] },
+    });
+    assert.deepEqual(await updateFuturePrice.json(), { ok: true, updated: 1 });
+
     const removedTeamLogin = await api(running.baseUrl, "/api/auth", {
       method: "POST",
       body: { id: "6", password: teamPassword },
@@ -131,6 +138,13 @@ test("shares staff and team state through the public game server and keeps it af
     const start = await api(running.baseUrl, "/api/game/start", { method: "POST", token: staff.token });
     assert.deepEqual(await start.json(), { round: 0, started: true });
 
+    const lockedPrice = await api(running.baseUrl, "/api/game/prices", {
+      method: "POST",
+      token: staff.token,
+      body: { updates: [{ ticker: "IMMU", round: 0, price: 999 }] },
+    });
+    assert.equal(lockedPrice.status, 400);
+
     const round = await api(running.baseUrl, "/api/game/round", { method: "POST", token: staff.token });
     assert.deepEqual(await round.json(), { round: 1 });
 
@@ -147,12 +161,22 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(teamData.team.cash, 702);
     assert.equal(teamData.team.holdings.IMMU, 2);
     assert.equal(teamData.teams, null);
+    assert.equal(teamData.market.prices.IMMU[1], 149);
+    assert.equal(teamData.market.prices.IMMU[2], null);
 
     const staffSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
     const staffData = await staffSnapshot.json();
     assert.equal(staffData.teams[0].cash, 702);
     assert.equal(staffData.teams[0].trades.length, 1);
     assert.equal(staffData.team, null);
+    assert.equal(staffData.market.prices.IMMU[2], 777);
+
+    const deniedPriceUpdate = await api(running.baseUrl, "/api/game/prices", {
+      method: "POST",
+      token: team.token,
+      body: { updates: [{ ticker: "IMMU", round: 3, price: 888 }] },
+    });
+    assert.equal(deniedPriceUpdate.status, 403);
 
     await stopServer(running.child);
     running = await startServer(port, dataDir);
@@ -178,6 +202,7 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(resetData.teams[0].cash, 1000);
     assert.deepEqual(resetData.teams[0].holdings, {});
     assert.equal(resetData.teams[0].trades.length, 0);
+    assert.equal(resetData.market.prices.IMMU[2], 127);
 
     await stopServer(running.child);
     running = await startServer(port, dataDir);

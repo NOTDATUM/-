@@ -52,6 +52,12 @@ db.exec(`
     seed_money INTEGER NOT NULL DEFAULT 1000,
     cash INTEGER NOT NULL DEFAULT 1000
   ) STRICT;
+  CREATE TABLE IF NOT EXISTS price_schedule (
+    ticker TEXT NOT NULL,
+    round INTEGER NOT NULL,
+    price INTEGER,
+    PRIMARY KEY (ticker, round)
+  ) STRICT;
   CREATE TABLE IF NOT EXISTS holdings (
     team_id INTEGER NOT NULL,
     ticker TEXT NOT NULL,
@@ -78,6 +84,14 @@ const insertInitialTeam = db.prepare("INSERT OR IGNORE INTO teams (team_id, seed
 const configuredTeamCount = db.prepare("SELECT COUNT(*) AS count FROM teams").get().count;
 if (configuredTeamCount === 0) {
   for (let teamId = 1; teamId <= defaultTeamCount; teamId += 1) insertInitialTeam.run(teamId);
+}
+
+const configuredPriceCount = db.prepare("SELECT COUNT(*) AS count FROM price_schedule").get().count;
+if (configuredPriceCount === 0) {
+  const insertInitialPrice = db.prepare("INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)");
+  for (const stock of stocks) {
+    stock.prices.forEach((price, round) => insertInitialPrice.run(stock.ticker, round, price));
+  }
 }
 
 class HttpError extends Error {
@@ -182,7 +196,8 @@ function transaction(work) {
 }
 
 function getStockPrice(ticker, round) {
-  return stocks.find((stock) => stock.ticker === ticker)?.prices[round] ?? null;
+  const row = db.prepare("SELECT price FROM price_schedule WHERE ticker = ? AND round = ?").get(ticker, round);
+  return row?.price ?? null;
 }
 
 function isStockTradable(ticker, round) {
@@ -195,10 +210,15 @@ function gameSnapshot(session) {
   const teams = db.prepare("SELECT team_id, seed_money, cash FROM teams ORDER BY team_id").all();
   const holdings = db.prepare("SELECT team_id, ticker, shares FROM holdings WHERE shares > 0 ORDER BY team_id, ticker").all();
   const trades = db.prepare("SELECT id, team_id, ticker, action, quantity, price, round, created_at FROM trades ORDER BY id DESC LIMIT 500").all();
+  const priceRows = db.prepare("SELECT ticker, round, price FROM price_schedule ORDER BY ticker, round").all();
+  const fullPrices = Object.fromEntries(stocks.map((stock) => [
+    stock.ticker,
+    Array.from({ length: lastRound + 1 }, (_, round) => priceRows.find((row) => row.ticker === stock.ticker && row.round === round)?.price ?? null),
+  ]));
   const teamViews = teams.map((team) => {
     const teamHoldings = holdings.filter((holding) => holding.team_id === team.team_id);
     const stockValue = teamHoldings.reduce(
-      (sum, holding) => sum + holding.shares * (getStockPrice(holding.ticker, game.round) ?? 0),
+      (sum, holding) => sum + holding.shares * (fullPrices[holding.ticker]?.[game.round] ?? 0),
       0,
     );
     return {
@@ -213,6 +233,14 @@ function gameSnapshot(session) {
   return {
     session,
     game: { round: game.round, started: Boolean(game.started), updatedAt: game.updated_at },
+    market: {
+      prices: session.role === "staff"
+        ? fullPrices
+        : Object.fromEntries(Object.entries(fullPrices).map(([ticker, prices]) => [
+          ticker,
+          prices.map((price, round) => round <= game.round ? price : null),
+        ])),
+    },
     team: session.role === "team" ? teamViews.find((team) => team.teamId === session.teamId) ?? null : null,
     teams: session.role === "staff" ? teamViews : null,
   };
@@ -249,6 +277,37 @@ function resetGame() {
     db.prepare("UPDATE teams SET seed_money = ?, cash = ?").run(defaultSeedMoney, defaultSeedMoney);
     db.prepare("UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
     db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
+    db.prepare("DELETE FROM price_schedule").run();
+    const insertPrice = db.prepare("INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)");
+    for (const stock of stocks) {
+      stock.prices.forEach((price, round) => insertPrice.run(stock.ticker, round, price));
+    }
+  });
+}
+
+function updateFuturePrices(updates) {
+  if (!Array.isArray(updates) || updates.length < 1 || updates.length > stocks.length * (lastRound + 1)) {
+    throw new HttpError(400, "수정할 주가를 다시 확인해 주세요.");
+  }
+  return transaction(() => {
+    const game = db.prepare("SELECT round, started FROM game_state WHERE id = 1").get();
+    if (!game) throw new HttpError(500, "게임 상태를 불러오지 못했습니다.");
+    const firstEditableRound = game.started ? game.round + 1 : 0;
+    const normalized = updates.map((item) => {
+      const ticker = String(item?.ticker ?? "");
+      const round = Number(item?.round);
+      const price = item?.price === null ? null : Number(item?.price);
+      if (!stocks.some((stock) => stock.ticker === ticker)
+        || !Number.isInteger(round) || round < firstEditableRound || round > lastRound
+        || (price !== null && (!Number.isInteger(price) || price < 1 || price > 100_000_000))) {
+        throw new HttpError(400, "진행되지 않은 라운드의 올바른 주가만 수정할 수 있습니다.");
+      }
+      return { ticker, round, price };
+    });
+    const updatePrice = db.prepare("UPDATE price_schedule SET price = ? WHERE ticker = ? AND round = ?");
+    normalized.forEach((item) => updatePrice.run(item.price, item.ticker, item.round));
+    db.prepare("UPDATE game_state SET updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    return normalized.length;
   });
 }
 
@@ -365,6 +424,12 @@ const server = createServer(async (request, response) => {
       if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
       resetGame();
       sendJson(response, 200, { ok: true }, origin);
+      return;
+    }
+    if (pathname === "/api/game/prices" && request.method === "POST") {
+      if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
+      const body = await readJson(request);
+      sendJson(response, 200, { ok: true, updated: updateFuturePrices(body.updates) }, origin);
       return;
     }
     if (pathname === "/api/game/round" && request.method === "POST") {

@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import gameData from "../shared/game-data.json";
 
 export function getGameDb() {
   if (!env.DB) throw new Error("게임 데이터베이스가 연결되지 않았습니다.");
@@ -18,6 +19,12 @@ export async function ensureGameSchema() {
       team_id INTEGER PRIMARY KEY,
       seed_money INTEGER NOT NULL DEFAULT 1000,
       cash INTEGER NOT NULL DEFAULT 1000
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS price_schedule (
+      ticker TEXT NOT NULL,
+      round INTEGER NOT NULL,
+      price INTEGER,
+      PRIMARY KEY (ticker, round)
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS holdings (
       team_id INTEGER NOT NULL,
@@ -46,5 +53,15 @@ export async function ensureGameSchema() {
       seeds.push(db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)").bind(team));
     }
     await db.batch(seeds);
+  }
+  const priceCount = await db.prepare("SELECT COUNT(*) AS count FROM price_schedule").first<{ count: number }>();
+  if (!priceCount?.count) {
+    const prices = [];
+    for (const stock of gameData.stocks) {
+      stock.prices.forEach((price, round) => {
+        prices.push(db.prepare("INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)").bind(stock.ticker, round, price));
+      });
+    }
+    await db.batch(prices);
   }
 }

@@ -1,5 +1,5 @@
 import { ensureGameSchema, getGameDb } from "../../../../db/game";
-import { getStockPrice, isStockTradable, stocks } from "../../../game-data";
+import { LAST_ROUND, stocks } from "../../../game-data";
 import { readSession } from "../../../lib/session";
 
 export async function POST(request: Request) {
@@ -16,9 +16,9 @@ export async function POST(request: Request) {
   const db = getGameDb();
   const game = await db.prepare("SELECT round, started FROM game_state WHERE id = 1").first<{ round: number; started: number }>();
   if (!game?.started) return Response.json({ error: "아직 게임이 시작되지 않았습니다." }, { status: 400 });
-  if (!isStockTradable(ticker, game.round)) return Response.json({ error: "현재 거래할 수 없는 종목입니다." }, { status: 400 });
-  const price = getStockPrice(ticker, game.round);
-  if (price === null) return Response.json({ error: "현재 가격이 없습니다." }, { status: 400 });
+  const priceRow = await db.prepare("SELECT price FROM price_schedule WHERE ticker = ? AND round = ?").bind(ticker, game.round).first<{ price: number | null }>();
+  const price = priceRow?.price ?? null;
+  if (game.round >= LAST_ROUND || price === null) return Response.json({ error: "현재 거래할 수 없는 종목입니다." }, { status: 400 });
   const team = await db.prepare("SELECT cash FROM teams WHERE team_id = ?").bind(session.teamId).first<{ cash: number }>();
   const holding = await db.prepare("SELECT shares FROM holdings WHERE team_id = ? AND ticker = ?").bind(session.teamId, ticker).first<{ shares: number }>();
   const shares = holding?.shares ?? 0;
