@@ -13,6 +13,10 @@ const money = new Intl.NumberFormat("ko-KR");
 const MAX_ORDER_QUANTITY = 1_000_000;
 const DEFAULT_TEAM_COUNT = 12;
 const MAX_TEAM_COUNT = 30;
+const CLIENT_THEME_KEY = "be-client-theme";
+
+type ClientTheme = "dark" | "light";
+type ClientChartMode = "all" | "single";
 
 function clampOrderQuantity(value: number, maximum: number) {
   if (maximum < 1) return 0;
@@ -109,14 +113,14 @@ function AllStocksChart({ round, prices, compact = false, selectedTicker = null,
     const prepared = prepareCanvas(canvas);
     if (!prepared) return;
     const { context, width, height } = prepared;
-    const pad = compact ? { top: 12, right: 10, bottom: 22, left: 10 } : { top: 28, right: 24, bottom: 42, left: 64 };
+    const pad = compact ? { top: 12, right: 10, bottom: 22, left: 10 } : { top: 31, right: 26, bottom: 46, left: 72 };
     const plotWidth = width - pad.left - pad.right;
     const plotHeight = height - pad.top - pad.bottom;
     const x = (index: number) => pad.left + (index / viewport.xMax) * plotWidth;
     const y = (indexValue: number) => pad.top + ((viewport.max - indexValue) / (viewport.max - viewport.min)) * plotHeight;
 
     if (!compact) {
-      context.font = "600 11px Arial";
+      context.font = "650 12px Arial";
       context.fillStyle = tone === "light" ? "#6b7684" : "rgba(211,222,240,.55)";
       context.textAlign = "left";
       context.fillText("주가 (BE)", pad.left, 13);
@@ -131,7 +135,7 @@ function AllStocksChart({ round, prices, compact = false, selectedTicker = null,
         context.stroke();
         context.fillStyle = tone === "light" ? "#8b95a1" : "rgba(211,222,240,.5)";
         context.textAlign = "right";
-        context.fillText(money.format(Math.round(value)), pad.left - 10, py + 4);
+        context.fillText(money.format(Math.round(value)), pad.left - 11, py + 4);
       }
       context.strokeStyle = tone === "light" ? "rgba(25,31,40,.16)" : "rgba(255,255,255,.12)";
       context.beginPath();
@@ -187,7 +191,7 @@ function AllStocksChart({ round, prices, compact = false, selectedTicker = null,
       context.restore();
       if (!compact && selectedTicker === stock.ticker) {
         context.fillStyle = stock.color;
-        context.font = "700 11px Arial";
+        context.font = "700 12px Arial";
         context.textAlign = "right";
         context.fillText(`${money.format(Math.round(last.value))} BE`, width - pad.right, Math.max(pad.top + 12, y(last.value) - 10));
       }
@@ -348,9 +352,18 @@ function RoundProgress({ round }: { round: number }) {
   })}</div>;
 }
 
-function Topbar({ session, round, onLogout, presentation = false, started = true, onOpenPriceBoard }: { session: Session; round: number; onLogout: () => void; presentation?: boolean; started?: boolean; onOpenPriceBoard?: () => void }) {
+function Topbar({ session, round, onLogout, presentation = false, started = true, onOpenPriceBoard, clientTheme, onToggleTheme }: { session: Session; round: number; onLogout: () => void; presentation?: boolean; started?: boolean; onOpenPriceBoard?: () => void; clientTheme?: ClientTheme; onToggleTheme?: () => void }) {
   const marketLabel = !started ? "MARKET READY" : round === LAST_ROUND ? "MARKET CLOSED" : "MARKET OPEN";
-  return <header className={`topbar ${presentation ? "presentation" : ""} ${session.role === "team" ? "client-topbar" : ""}`}><Brand compact /><div className="market-center"><span className={`status-dot ${!started ? "pending" : round === LAST_ROUND ? "closed" : ""}`} /><span>{marketLabel}</span><strong>{started ? rounds[round].label : "시작 전"}</strong></div><div className="account-actions"><span>{session.role === "staff" ? "STAFF CONTROL" : `${session.teamId}조 계정`}</span>{session.role === "staff" && onOpenPriceBoard && <button className="price-board-button" onClick={onOpenPriceBoard}>주가 변동표</button>}<button onClick={onLogout}>로그아웃</button></div></header>;
+  return <header className={`topbar ${presentation ? "presentation" : ""} ${session.role === "team" ? "client-topbar" : ""}`}>
+    <Brand compact />
+    <div className="market-center"><span className={`status-dot ${!started ? "pending" : round === LAST_ROUND ? "closed" : ""}`} /><span>{marketLabel}</span><strong>{started ? rounds[round].label : "시작 전"}</strong></div>
+    <div className="account-actions">
+      <span>{session.role === "staff" ? "STAFF CONTROL" : `${session.teamId}조 계정`}</span>
+      {session.role === "team" && clientTheme && onToggleTheme && <button className={`client-theme-toggle ${clientTheme}`} aria-label={`${clientTheme === "dark" ? "화이트" : "다크"} 모드로 전환`} aria-pressed={clientTheme === "dark"} onClick={onToggleTheme}><i aria-hidden="true">{clientTheme === "dark" ? "☾" : "☀"}</i><strong>{clientTheme === "dark" ? "다크" : "화이트"}</strong></button>}
+      {session.role === "staff" && onOpenPriceBoard && <button className="price-board-button" onClick={onOpenPriceBoard}>주가 변동표</button>}
+      <button onClick={onLogout}>로그아웃</button>
+    </div>
+  </header>;
 }
 
 function WaitingScreen({ session, onLogout }: { session: Session; onLogout: () => void }) {
@@ -416,7 +429,12 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
   const round = snapshot.game.round;
   const prices = snapshot.market.prices;
   const [ticker, setTicker] = useState("IMMU");
-  const [marketTicker, setMarketTicker] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<ClientChartMode>("all");
+  const [clientTheme, setClientTheme] = useState<ClientTheme>(() => {
+    if (typeof window === "undefined") return "dark";
+    const savedTheme = window.localStorage.getItem(CLIENT_THEME_KEY);
+    return savedTheme === "light" || savedTheme === "dark" ? savedTheme : "dark";
+  });
   const [profileOpen, setProfileOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -434,6 +452,7 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
   const maxOrderQuantity = Math.max(maxBuyQuantity, maxSellQuantity);
   const minOrderQuantity = maxOrderQuantity > 0 ? 1 : 0;
   const orderQuantity = clampOrderQuantity(quantity, maxOrderQuantity);
+  const selectedChartTicker = chartMode === "single" ? ticker : null;
 
   useEffect(() => {
     if (!toast) return;
@@ -443,8 +462,16 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
 
   const selectStock = (nextTicker: string) => {
     setTicker(nextTicker);
-    setMarketTicker(nextTicker);
+    setChartMode("single");
     setQuantity(1);
+  };
+
+  const toggleTheme = () => {
+    setClientTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem(CLIENT_THEME_KEY, next);
+      return next;
+    });
   };
 
   const trade = async (action: "buy" | "sell") => {
@@ -463,8 +490,8 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
     }
   };
 
-  return <main className="app-shell toss-client">
-    <Topbar session={snapshot.session} round={round} onLogout={onLogout} />
+  return <main className={`app-shell toss-client theme-${clientTheme}`}>
+    <Topbar session={snapshot.session} round={round} onLogout={onLogout} clientTheme={clientTheme} onToggleTheme={toggleTheme} />
     <section className="client-dashboard">
       <div className="client-main-column">
         <section className="client-round-strip">
@@ -474,18 +501,18 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
         <section className="client-market-card">
           <header className="client-market-head">
             <div>
-              <span className="client-kicker">{marketTicker ? `${stock.ticker} · ${stock.field}` : "전체 주식시장"}</span>
+              <span className="client-kicker">{chartMode === "single" ? `${stock.ticker} · ${stock.field}` : "전체 주식시장"}</span>
               <div className="client-market-title">
-                <h1>{marketTicker ? stock.name : "시장 흐름"}</h1>
-                {marketTicker && <strong>{price === null ? "상장 전" : `${money.format(price)} BE`}<small className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "기준가" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`}</small></strong>}
+                <h1>{chartMode === "single" ? stock.name : "시장 흐름"}</h1>
+                {chartMode === "single" && <strong>{price === null ? "상장 전" : `${money.format(price)} BE`}<small className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "기준가" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`}</small></strong>}
               </div>
             </div>
-            <div className="client-chart-actions">
-              <button className={!marketTicker ? "active" : ""} onClick={() => setMarketTicker(null)}>전체 시장</button>
-              <button onClick={() => setProfileOpen(true)}>기업 정보</button>
+            <div className="client-chart-actions" aria-label="차트 보기 방식">
+              <button className={chartMode === "all" ? "active" : ""} aria-pressed={chartMode === "all"} onClick={() => setChartMode("all")}>전체 차트</button>
+              <button className={chartMode === "single" ? "active" : ""} aria-pressed={chartMode === "single"} onClick={() => setChartMode("single")}>단일 차트</button>
             </div>
           </header>
-          <AllStocksChart round={round} prices={prices} selectedTicker={marketTicker} tone="light" />
+          <AllStocksChart round={round} prices={prices} selectedTicker={selectedChartTicker} tone={clientTheme} />
           <div className="client-stock-strip" aria-label="거래 종목 선택">
             {stocks.map((item) => {
               const itemPrice = getStockPrice(item.ticker, round, prices);
@@ -498,7 +525,7 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
               </button>;
             })}
           </div>
-          <div className="client-stock-summary"><span style={{ background: stock.color }} /><p><strong>{stock.name}</strong>{stock.description}</p><button onClick={() => setProfileOpen(true)}>상세보기 →</button></div>
+          {chartMode === "single" && <div className="client-stock-summary"><span style={{ background: stock.color }} /><p><strong>{stock.name}</strong>{stock.description}</p><button onClick={() => setProfileOpen(true)}>상세보기 →</button></div>}
         </section>
       </div>
 
@@ -528,7 +555,7 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
       </aside>
     </section>
 
-    {profileOpen && <div className="stock-profile-modal" role="presentation" onMouseDown={() => setProfileOpen(false)}><section role="dialog" aria-modal="true" aria-label={`${stock.name} 기업 상세정보`} onMouseDown={(event) => event.stopPropagation()}><button className="profile-close" aria-label="기업 정보 닫기" onClick={() => setProfileOpen(false)}>×</button><header><span style={{ background: stock.color }} /><div><small>{stock.ticker} · {stock.english}</small><h2>{stock.name}</h2></div><strong>{price === null ? "상장 전" : `${money.format(price)} BE`}</strong></header><StockProfile stock={stock} /></section></div>}
+    {profileOpen && <div className="stock-profile-modal" role="presentation" onMouseDown={() => setProfileOpen(false)}><section role="dialog" aria-modal="true" aria-label={`${stock.name} 기업 상세정보`} onMouseDown={(event) => event.stopPropagation()}><button className="profile-close" aria-label="상세정보 닫기" onClick={() => setProfileOpen(false)}>×</button><header><span style={{ background: stock.color }} /><div><small>{stock.ticker} · {stock.english}</small><h2>{stock.name}</h2></div><strong>{price === null ? "상장 전" : `${money.format(price)} BE`}</strong></header><StockProfile stock={stock} /></section></div>}
     {toast && <div className="toast">{toast}</div>}
   </main>;
 }
