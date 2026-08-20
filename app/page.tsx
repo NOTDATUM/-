@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LAST_ROUND, getStockPrice, isStockTradable, rounds, stocks, type Stock } from "./game-data";
+import { apiFetch, clearApiSessionToken, setApiSessionToken } from "./api-client";
 
 type Session = { role: "staff"; teamId: null } | { role: "team"; teamId: number };
 type Trade = { id: number; team_id: number; ticker: string; action: "buy" | "sell"; quantity: number; price: number; round: number; created_at: string };
@@ -276,9 +277,10 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
     try {
-      const response = await fetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, password }) });
-      const data = await response.json() as { session?: Session; error?: string };
+      const response = await apiFetch("/api/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, password }) });
+      const data = await response.json() as { session?: Session; token?: string; error?: string };
       if (!response.ok || !data.session) throw new Error(data.error ?? "로그인에 실패했습니다.");
+      if (data.token) setApiSessionToken(data.token);
       onLogin(data.session);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "로그인에 실패했습니다."); }
     finally { setBusy(false); }
@@ -322,7 +324,7 @@ function SeedSetup({ initial, onSaved, onCancel }: { initial?: TeamView[] | null
   const save = async () => {
     setBusy(true); setError("");
     try {
-      const response = await fetch("/api/game/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seeds }) });
+      const response = await apiFetch("/api/game/setup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seeds }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "저장하지 못했습니다.");
       onSaved();
@@ -352,7 +354,7 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
   const trade = async (action: "buy" | "sell") => {
     setBusy(true);
     try {
-      const response = await fetch("/api/game/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker, action, quantity }) });
+      const response = await apiFetch("/api/game/trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ticker, action, quantity }) });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? "주문을 처리하지 못했습니다.");
       setToast(`${stock.name} ${quantity}주를 ${action === "buy" ? "매수" : "매도"}했습니다.`);
@@ -379,7 +381,7 @@ function StaffDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; r
   const advance = async () => {
     if (!window.confirm(`${round + 1}라운드 주가를 공개할까요?`)) return;
     setBusy(true);
-    try { const response = await fetch("/api/game/round", { method: "POST" }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error ?? "라운드를 진행하지 못했습니다."); await refresh(); }
+    try { const response = await apiFetch("/api/game/round", { method: "POST" }); const data = await response.json() as { error?: string }; if (!response.ok) throw new Error(data.error ?? "라운드를 진행하지 못했습니다."); await refresh(); }
     catch (caught) { window.alert(caught instanceof Error ? caught.message : "라운드를 진행하지 못했습니다."); }
     finally { setBusy(false); }
   };
@@ -399,8 +401,8 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
-    const response = await fetch("/api/game", { cache: "no-store" });
-    if (response.status === 401) { setSession(null); setSnapshot(null); return; }
+    const response = await apiFetch("/api/game", { cache: "no-store" });
+    if (response.status === 401) { clearApiSessionToken(); setSession(null); setSnapshot(null); return; }
     const data = await response.json() as Snapshot & { error?: string };
     if (!response.ok) throw new Error(data.error ?? "게임 정보를 불러오지 못했습니다.");
     setSnapshot(data); setSession(data.session); setError("");
@@ -422,7 +424,7 @@ export default function Home() {
   }, [session, refresh]);
 
   const login = async (nextSession: Session) => { setSession(nextSession); await refresh(); };
-  const logout = async () => { await fetch("/api/auth", { method: "DELETE" }); setSession(null); setSnapshot(null); };
+  const logout = async () => { await apiFetch("/api/auth", { method: "DELETE" }); clearApiSessionToken(); setSession(null); setSnapshot(null); };
 
   if (session === undefined) return <main className="loading-shell"><Brand /><div className="loading-line"><span /></div><p>시장을 불러오고 있습니다</p></main>;
   if (!session) return <><LoginScreen onLogin={login} />{error && <div className="toast error">{error}</div>}</>;
