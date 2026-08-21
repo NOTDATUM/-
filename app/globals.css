@@ -426,8 +426,15 @@ button { color: inherit; }
 .client-detail-table th { color: #8b95a1; font-size: 10px; font-weight: 650; }
 .client-detail-table td { color: #4e5968; font: 600 11px var(--font-geist-mono); }
 .client-detail-table th:first-child, .client-detail-table td:first-child, .client-detail-table.trades th:nth-child(3), .client-detail-table.trades td:nth-child(3) { text-align: left; }
-.client-detail-table td:first-child { display: flex; align-items: center; gap: 8px; }
-.client-detail-table td:first-child > i { width: 6px; height: 30px; border-radius: 999px; }
+.client-detail-stock { display: flex; align-items: center; gap: 8px; }
+.client-detail-stock > i { flex: 0 0 auto; width: 6px; height: 30px; border-radius: 999px; }
+.client-detail-company { min-width: 150px; text-align: left !important; }
+.client-detail-table.trades table { min-width: 720px; }
+.client-detail-table.trades th:nth-child(1) { width: 78px; }
+.client-detail-table.trades th:nth-child(2) { width: 68px; }
+.client-detail-table.trades th:nth-child(4) { width: 90px; }
+.client-detail-table.trades th:nth-child(5) { width: 104px; }
+.client-detail-table.trades th:nth-child(6) { width: 122px; }
 .client-detail-table td span strong, .client-detail-table td span small { display: block; }
 .client-detail-table td span strong { color: #333d4b; font-family: var(--font-geist-sans); font-size: 11px; }
 .client-detail-table td span small { margin-top: 3px; color: #8b95a1; font-size: 9px; }
