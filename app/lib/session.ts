@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import { getRuntimeSecrets } from "./config";
+import { ensureGameSchema, getGameDb } from "../../db/game";
 
-export type GameSession = { role: "staff"; teamId: null } | { role: "team"; teamId: number };
+export type GameSession = { role: "staff"; teamId: null; sessionVersion: null } | { role: "team"; teamId: number; sessionVersion: number };
+export type PublicGameSession = { role: "staff"; teamId: null } | { role: "team"; teamId: number };
 
 const COOKIE_NAME = "be_game_session";
 
@@ -16,8 +18,12 @@ async function sign(payload: string) {
 }
 
 export async function createSessionToken(session: GameSession) {
-  const payload = session.role === "staff" ? "staff" : `team:${session.teamId}`;
+  const payload = session.role === "staff" ? "staff" : `team:${session.teamId}:${session.sessionVersion}`;
   return `${payload}.${await sign(payload)}`;
+}
+
+export function publicGameSession(session: GameSession): PublicGameSession {
+  return session.role === "staff" ? { role: "staff", teamId: null } : { role: "team", teamId: session.teamId };
 }
 
 export async function readSession(): Promise<GameSession | null> {
@@ -29,11 +35,19 @@ export async function readSession(): Promise<GameSession | null> {
   const payload = token.slice(0, split);
   const signature = token.slice(split + 1);
   if (signature !== await sign(payload)) return null;
-  if (payload === "staff") return { role: "staff", teamId: null };
-  const match = payload.match(/^team:(\d{1,2})$/);
+  if (payload === "staff") return { role: "staff", teamId: null, sessionVersion: null };
+  const match = payload.match(/^team:(\d{1,2}):(\d+)$/);
   const teamId = match ? Number(match[1]) : 0;
-  if (teamId < 1 || teamId > 30) return null;
-  return { role: "team", teamId };
+  const sessionVersion = match ? Number(match[2]) : -1;
+  if (teamId < 1 || teamId > 30 || !Number.isInteger(sessionVersion) || sessionVersion < 0) return null;
+  await ensureGameSchema();
+  const db = getGameDb();
+  const current = await db.prepare(`SELECT ts.session_version
+    FROM team_sessions ts INNER JOIN teams t ON t.team_id = ts.team_id
+    WHERE ts.team_id = ?`).bind(teamId).first<{ session_version: number }>();
+  if (!current || current.session_version !== sessionVersion) return null;
+  await db.prepare("UPDATE team_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE team_id = ?").bind(teamId).run();
+  return { role: "team", teamId, sessionVersion };
 }
 
 function isSecureRequest(request: Request) {

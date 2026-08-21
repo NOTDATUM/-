@@ -110,6 +110,8 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(preparedData.game.round, 0);
     assert.equal(preparedData.teams.length, 5);
     assert.equal(preparedData.teams[1].seedMoney, 1100);
+    assert.equal(preparedData.teams[0].online, false);
+    assert.equal(preparedData.teams[0].lastSeenAt, null);
 
     const updateFuturePrice = await api(running.baseUrl, "/api/game/prices", {
       method: "POST",
@@ -124,7 +126,34 @@ test("shares staff and team state through the public game server and keeps it af
     });
     assert.equal(removedTeamLogin.status, 401);
 
-    const team = await login(running.baseUrl, "1", teamPassword);
+    let team = await login(running.baseUrl, "1", teamPassword);
+    const onlineSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const onlineData = await onlineSnapshot.json();
+    assert.equal(onlineData.teams[0].online, true);
+    assert.ok(onlineData.teams[0].lastSeenAt);
+
+    const deniedForceLogout = await api(running.baseUrl, "/api/game/force-logout", {
+      method: "POST",
+      token: team.token,
+      body: { teamId: 2 },
+    });
+    assert.equal(deniedForceLogout.status, 403);
+
+    const forceLogout = await api(running.baseUrl, "/api/game/force-logout", {
+      method: "POST",
+      token: staff.token,
+      body: { teamId: 1 },
+    });
+    assert.deepEqual(await forceLogout.json(), { ok: true, teamId: 1 });
+
+    const invalidatedSession = await api(running.baseUrl, "/api/game", { token: team.token });
+    assert.equal(invalidatedSession.status, 401);
+    const offlineSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const offlineData = await offlineSnapshot.json();
+    assert.equal(offlineData.teams[0].online, false);
+    assert.equal(offlineData.teams[0].lastSeenAt, null);
+
+    team = await login(running.baseUrl, "1", teamPassword);
     const blockedTrade = await api(running.baseUrl, "/api/game/trade", {
       method: "POST",
       token: team.token,
@@ -168,6 +197,7 @@ test("shares staff and team state through the public game server and keeps it af
     const staffData = await staffSnapshot.json();
     assert.equal(staffData.teams[0].cash, 702);
     assert.equal(staffData.teams[0].trades.length, 1);
+    assert.equal(staffData.teams[0].online, true);
     assert.equal(staffData.team, null);
     assert.equal(staffData.market.prices.IMMU[2], 777);
 

@@ -52,6 +52,11 @@ db.exec(`
     seed_money INTEGER NOT NULL DEFAULT 1000,
     cash INTEGER NOT NULL DEFAULT 1000
   ) STRICT;
+  CREATE TABLE IF NOT EXISTS team_sessions (
+    team_id INTEGER PRIMARY KEY,
+    session_version INTEGER NOT NULL DEFAULT 0,
+    last_seen_at TEXT
+  ) STRICT;
   CREATE TABLE IF NOT EXISTS price_schedule (
     ticker TEXT NOT NULL,
     round INTEGER NOT NULL,
@@ -85,6 +90,8 @@ const configuredTeamCount = db.prepare("SELECT COUNT(*) AS count FROM teams").ge
 if (configuredTeamCount === 0) {
   for (let teamId = 1; teamId <= defaultTeamCount; teamId += 1) insertInitialTeam.run(teamId);
 }
+const insertInitialTeamSession = db.prepare("INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)");
+for (const team of db.prepare("SELECT team_id FROM teams").all()) insertInitialTeamSession.run(team.team_id);
 
 const configuredPriceCount = db.prepare("SELECT COUNT(*) AS count FROM price_schedule").get().count;
 if (configuredPriceCount === 0) {
@@ -111,13 +118,18 @@ function createSessionToken(session) {
   const payload = Buffer.from(JSON.stringify({
     role: session.role,
     teamId: session.teamId,
+    sessionVersion: session.sessionVersion,
     exp: Date.now() + 18 * 60 * 60 * 1000,
   })).toString("base64url");
   const signature = createHmac("sha256", signingKey).update(payload).digest("base64url");
   return `${payload}.${signature}`;
 }
 
-function readSession(request) {
+function publicSession(session) {
+  return session.role === "staff" ? { role: "staff", teamId: null } : { role: "team", teamId: session.teamId };
+}
+
+function readSession(request, { touch = true } = {}) {
   const authorization = request.headers.authorization ?? "";
   if (!authorization.startsWith("Bearer ")) return null;
   const token = authorization.slice(7);
@@ -130,10 +142,15 @@ function readSession(request) {
   try {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!Number.isFinite(session.exp) || session.exp < Date.now()) return null;
-    if (session.role === "staff" && session.teamId === null) return { role: "staff", teamId: null };
-    if (session.role === "team" && Number.isInteger(session.teamId) && session.teamId >= 1 && session.teamId <= maxTeamCount) {
-      const teamExists = db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(session.teamId);
-      if (teamExists) return { role: "team", teamId: session.teamId };
+    if (session.role === "staff" && session.teamId === null) return { role: "staff", teamId: null, sessionVersion: null };
+    if (session.role === "team" && Number.isInteger(session.teamId) && session.teamId >= 1 && session.teamId <= maxTeamCount && Number.isInteger(session.sessionVersion)) {
+      const teamSession = db.prepare(`SELECT ts.session_version
+        FROM team_sessions ts INNER JOIN teams t ON t.team_id = ts.team_id
+        WHERE ts.team_id = ?`).get(session.teamId);
+      if (teamSession && teamSession.session_version === session.sessionVersion) {
+        if (touch) db.prepare("UPDATE team_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE team_id = ?").run(session.teamId);
+        return { role: "team", teamId: session.teamId, sessionVersion: session.sessionVersion };
+      }
     }
   } catch {
     return null;
@@ -211,6 +228,9 @@ function gameSnapshot(session) {
   const holdings = db.prepare("SELECT team_id, ticker, shares FROM holdings WHERE shares > 0 ORDER BY team_id, ticker").all();
   const trades = db.prepare("SELECT id, team_id, ticker, action, quantity, price, round, created_at FROM trades ORDER BY id DESC LIMIT 500").all();
   const priceRows = db.prepare("SELECT ticker, round, price FROM price_schedule ORDER BY ticker, round").all();
+  const presenceRows = db.prepare(`SELECT team_id, last_seen_at,
+    CASE WHEN last_seen_at IS NOT NULL AND last_seen_at >= datetime('now', '-12 seconds') THEN 1 ELSE 0 END AS online
+    FROM team_sessions`).all();
   const fullPrices = Object.fromEntries(stocks.map((stock) => [
     stock.ticker,
     Array.from({ length: lastRound + 1 }, (_, round) => priceRows.find((row) => row.ticker === stock.ticker && row.round === round)?.price ?? null),
@@ -228,10 +248,12 @@ function gameSnapshot(session) {
       totalAsset: team.cash + stockValue,
       holdings: Object.fromEntries(teamHoldings.map((holding) => [holding.ticker, holding.shares])),
       trades: trades.filter((trade) => trade.team_id === team.team_id),
+      online: Boolean(presenceRows.find((presence) => presence.team_id === team.team_id)?.online),
+      lastSeenAt: presenceRows.find((presence) => presence.team_id === team.team_id)?.last_seen_at ?? null,
     };
   });
   return {
-    session,
+    session: publicSession(session),
     game: { round: game.round, started: Boolean(game.started), updatedAt: game.updated_at },
     market: {
       prices: session.role === "staff"
@@ -253,12 +275,25 @@ function setupGame(seeds) {
   }
   transaction(() => {
     db.exec("DELETE FROM holdings; DELETE FROM trades;");
+    db.prepare("UPDATE team_sessions SET session_version = session_version + 1, last_seen_at = NULL WHERE team_id > ?").run(seeds.length);
     db.prepare("UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
     db.prepare("DELETE FROM teams").run();
     const insertTeam = db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, ?, ?)");
-    seeds.forEach((seed, index) => insertTeam.run(index + 1, seed, seed));
+    const insertTeamSession = db.prepare("INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)");
+    seeds.forEach((seed, index) => {
+      insertTeam.run(index + 1, seed, seed);
+      insertTeamSession.run(index + 1);
+    });
     db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
   });
+}
+
+function forceLogoutTeam(teamId) {
+  if (!Number.isInteger(teamId) || teamId < 1 || teamId > maxTeamCount
+    || !db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(teamId)) {
+    throw new HttpError(400, "로그아웃할 조를 다시 확인해 주세요.");
+  }
+  db.prepare("UPDATE team_sessions SET session_version = session_version + 1, last_seen_at = NULL WHERE team_id = ?").run(teamId);
 }
 
 function startGame() {
@@ -380,19 +415,24 @@ const server = createServer(async (request, response) => {
       const id = String(body.id ?? "").trim();
       const password = String(body.password ?? "");
       let session = null;
-      if (id === "staff" && safeEqualText(password, staffPassword)) session = { role: "staff", teamId: null };
+      if (id === "staff" && safeEqualText(password, staffPassword)) session = { role: "staff", teamId: null, sessionVersion: null };
       const teamId = Number(id);
       const teamExists = Number.isInteger(teamId) && teamId >= 1 && teamId <= maxTeamCount
         && db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(teamId);
       if (/^\d{1,2}$/.test(id) && teamExists && safeEqualText(password, teamPassword)) {
-        session = { role: "team", teamId };
+        db.prepare("INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)").run(teamId);
+        const sessionState = db.prepare("SELECT session_version FROM team_sessions WHERE team_id = ?").get(teamId);
+        db.prepare("UPDATE team_sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE team_id = ?").run(teamId);
+        session = { role: "team", teamId, sessionVersion: sessionState.session_version };
       }
       if (!session) throw new HttpError(401, "아이디 또는 비밀번호가 올바르지 않습니다.");
-      sendJson(response, 200, { session, token: createSessionToken(session) }, origin);
+      sendJson(response, 200, { session: publicSession(session), token: createSessionToken(session) }, origin);
       return;
     }
 
     if (pathname === "/api/auth" && request.method === "DELETE") {
+      const logoutSession = readSession(request, { touch: false });
+      if (logoutSession?.role === "team") forceLogoutTeam(logoutSession.teamId);
       sendJson(response, 200, { ok: true }, origin);
       return;
     }
@@ -401,7 +441,7 @@ const server = createServer(async (request, response) => {
     if (!session) throw new HttpError(401, "로그인이 필요합니다.");
 
     if (pathname === "/api/auth" && request.method === "GET") {
-      sendJson(response, 200, { session }, origin);
+      sendJson(response, 200, { session: publicSession(session) }, origin);
       return;
     }
     if (pathname === "/api/game" && request.method === "GET") {
@@ -430,6 +470,14 @@ const server = createServer(async (request, response) => {
       if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
       const body = await readJson(request);
       sendJson(response, 200, { ok: true, updated: updateFuturePrices(body.updates) }, origin);
+      return;
+    }
+    if (pathname === "/api/game/force-logout" && request.method === "POST") {
+      if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
+      const body = await readJson(request);
+      const teamId = Number(body.teamId);
+      forceLogoutTeam(teamId);
+      sendJson(response, 200, { ok: true, teamId }, origin);
       return;
     }
     if (pathname === "/api/game/round" && request.method === "POST") {

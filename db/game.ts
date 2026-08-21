@@ -20,6 +20,11 @@ export async function ensureGameSchema() {
       seed_money INTEGER NOT NULL DEFAULT 1000,
       cash INTEGER NOT NULL DEFAULT 1000
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS team_sessions (
+      team_id INTEGER PRIMARY KEY,
+      session_version INTEGER NOT NULL DEFAULT 0,
+      last_seen_at TEXT
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS price_schedule (
       ticker TEXT NOT NULL,
       round INTEGER NOT NULL,
@@ -53,6 +58,12 @@ export async function ensureGameSchema() {
       seeds.push(db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)").bind(team));
     }
     await db.batch(seeds);
+  }
+  const teamRows = await db.prepare("SELECT team_id FROM teams").all<{ team_id: number }>();
+  if (teamRows.results.length) {
+    await db.batch(teamRows.results.map((team) => db.prepare(
+      "INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)",
+    ).bind(team.team_id)));
   }
   const priceCount = await db.prepare("SELECT COUNT(*) AS count FROM price_schedule").first<{ count: number }>();
   if (!priceCount?.count) {
