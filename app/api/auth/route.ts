@@ -11,9 +11,14 @@ export async function POST(request: Request) {
   const body = await request.json() as { id?: string; password?: string };
   const id = String(body.id ?? "").trim();
   const password = String(body.password ?? "");
-  const { staffPassword, teamPassword } = getRuntimeSecrets();
+  const { staffPassword, teamPassword, viewPassword } = getRuntimeSecrets();
   if (id === "staff" && password === staffPassword) {
     const session: GameSession = { role: "staff", teamId: null, sessionVersion: null };
+    await setSession(session, request);
+    return Response.json({ session: publicGameSession(session) });
+  }
+  if (id === "view" && password === viewPassword) {
+    const session: GameSession = { role: "view", teamId: null, sessionVersion: null };
     await setSession(session, request);
     return Response.json({ session: publicGameSession(session) });
   }

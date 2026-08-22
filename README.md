@@ -6,11 +6,12 @@ A real-time mock stock market built for a Department of Biological Sciences recr
 
 ## Features
 
-- Staff login and configurable team accounts
+- Separate staff administration, public live-view, and team accounts
 - Deterministic ten-round stock price scenarios
 - Share-based buy and sell orders
 - Live portfolio valuation and team leaderboard
 - Team presence monitoring and forced logout controls
+- Read-only room display with live market events and team returns
 - Staff-managed seed money, game start, reset, and round progression
 - Editable prices for rounds that have not been revealed
 - Responsive participant interface with light and dark themes
@@ -70,9 +71,10 @@ Required settings:
 | `ALLOWED_ORIGINS` | Comma-separated client origins allowed by CORS |
 | `TEAM_PASSWORD` | Shared password for team accounts |
 | `STAFF_PASSWORD` | Password for the `staff` account |
+| `VIEW_PASSWORD` | Password for the read-only `view` account; falls back to `STAFF_PASSWORD` when omitted |
 | `SESSION_SIGNING_KEY` | Random signing key with at least 32 characters |
 
-Team login IDs are numeric and assigned from `1` through the configured team count. The staff login ID is `staff`.
+Team login IDs are numeric and assigned from `1` through the configured team count. The administration login ID is `staff`, and the public presentation login ID is `view`.
 
 ## AWS Deployment
 
@@ -84,7 +86,7 @@ Copy the deployment environment template:
 cp deploy/aws/aws.env.example deploy/aws/aws.env
 ```
 
-Set `GAME_DOMAIN`, `ALLOWED_ORIGINS`, `TEAM_PASSWORD`, `STAFF_PASSWORD`, and `SESSION_SIGNING_KEY`, then start the services:
+Set `GAME_DOMAIN`, `ALLOWED_ORIGINS`, `TEAM_PASSWORD`, `STAFF_PASSWORD`, `VIEW_PASSWORD`, and `SESSION_SIGNING_KEY`, then start the services:
 
 ```bash
 docker compose --env-file deploy/aws/aws.env -f compose.aws.yaml up -d --build

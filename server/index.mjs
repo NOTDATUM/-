@@ -20,6 +20,7 @@ function requiredEnv(name) {
 
 const teamPassword = requiredEnv("TEAM_PASSWORD");
 const staffPassword = requiredEnv("STAFF_PASSWORD");
+const viewPassword = process.env.VIEW_PASSWORD?.trim() || staffPassword;
 const signingKey = requiredEnv("SESSION_SIGNING_KEY");
 if (signingKey.length < 32) throw new Error("SESSION_SIGNING_KEY는 32자 이상이어야 합니다.");
 
@@ -126,7 +127,8 @@ function createSessionToken(session) {
 }
 
 function publicSession(session) {
-  return session.role === "staff" ? { role: "staff", teamId: null } : { role: "team", teamId: session.teamId };
+  if (session.role === "team") return { role: "team", teamId: session.teamId };
+  return { role: session.role, teamId: null };
 }
 
 function readSession(request, { touch = true } = {}) {
@@ -143,6 +145,7 @@ function readSession(request, { touch = true } = {}) {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!Number.isFinite(session.exp) || session.exp < Date.now()) return null;
     if (session.role === "staff" && session.teamId === null) return { role: "staff", teamId: null, sessionVersion: null };
+    if (session.role === "view" && session.teamId === null) return { role: "view", teamId: null, sessionVersion: null };
     if (session.role === "team" && Number.isInteger(session.teamId) && session.teamId >= 1 && session.teamId <= maxTeamCount && Number.isInteger(session.sessionVersion)) {
       const teamSession = db.prepare(`SELECT ts.session_version
         FROM team_sessions ts INNER JOIN teams t ON t.team_id = ts.team_id
@@ -264,7 +267,11 @@ function gameSnapshot(session) {
         ])),
     },
     team: session.role === "team" ? teamViews.find((team) => team.teamId === session.teamId) ?? null : null,
-    teams: session.role === "staff" ? teamViews : null,
+    teams: session.role === "staff"
+      ? teamViews
+      : session.role === "view"
+        ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({ teamId, seedMoney, totalAsset }))
+        : null,
   };
 }
 
@@ -416,6 +423,7 @@ const server = createServer(async (request, response) => {
       const password = String(body.password ?? "");
       let session = null;
       if (id === "staff" && safeEqualText(password, staffPassword)) session = { role: "staff", teamId: null, sessionVersion: null };
+      if (id === "view" && safeEqualText(password, viewPassword)) session = { role: "view", teamId: null, sessionVersion: null };
       const teamId = Number(id);
       const teamExists = Number.isInteger(teamId) && teamId >= 1 && teamId <= maxTeamCount
         && db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(teamId);

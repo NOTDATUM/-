@@ -55,7 +55,11 @@ export async function GET() {
         : Object.fromEntries(Object.entries(fullPrices).map(([ticker, prices]) => [ticker, prices.map((price, round) => round <= game.round ? price : null)])),
     },
     team: session.role === "team" ? teamViews.find((item) => item.teamId === session.teamId) : null,
-    teams: session.role === "staff" ? teamViews : null,
+    teams: session.role === "staff"
+      ? teamViews
+      : session.role === "view"
+        ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({ teamId, seedMoney, totalAsset }))
+        : null,
   };
   return Response.json(response, { headers: { "Cache-Control": "no-store" } });
 }

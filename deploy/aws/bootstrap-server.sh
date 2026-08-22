@@ -144,6 +144,7 @@ umask 077
   printf 'ALLOWED_ORIGINS=%s\n' "${ALLOWED_ORIGINS}"
   printf 'TEAM_PASSWORD=%s\n' "${team_password}"
   printf 'STAFF_PASSWORD=%s\n' "${staff_password}"
+  printf 'VIEW_PASSWORD=%s\n' '12345678'
   printf 'SESSION_SIGNING_KEY=%s\n' "${session_signing_key}"
 } > "${env_file}"
 

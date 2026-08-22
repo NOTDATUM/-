@@ -2,8 +2,8 @@ import { cookies } from "next/headers";
 import { getRuntimeSecrets } from "./config";
 import { ensureGameSchema, getGameDb } from "../../db/game";
 
-export type GameSession = { role: "staff"; teamId: null; sessionVersion: null } | { role: "team"; teamId: number; sessionVersion: number };
-export type PublicGameSession = { role: "staff"; teamId: null } | { role: "team"; teamId: number };
+export type GameSession = { role: "staff" | "view"; teamId: null; sessionVersion: null } | { role: "team"; teamId: number; sessionVersion: number };
+export type PublicGameSession = { role: "staff" | "view"; teamId: null } | { role: "team"; teamId: number };
 
 const COOKIE_NAME = "be_game_session";
 
@@ -18,12 +18,12 @@ async function sign(payload: string) {
 }
 
 export async function createSessionToken(session: GameSession) {
-  const payload = session.role === "staff" ? "staff" : `team:${session.teamId}:${session.sessionVersion}`;
+  const payload = session.role === "team" ? `team:${session.teamId}:${session.sessionVersion}` : session.role;
   return `${payload}.${await sign(payload)}`;
 }
 
 export function publicGameSession(session: GameSession): PublicGameSession {
-  return session.role === "staff" ? { role: "staff", teamId: null } : { role: "team", teamId: session.teamId };
+  return session.role === "team" ? { role: "team", teamId: session.teamId } : { role: session.role, teamId: null };
 }
 
 export async function readSession(): Promise<GameSession | null> {
@@ -36,6 +36,7 @@ export async function readSession(): Promise<GameSession | null> {
   const signature = token.slice(split + 1);
   if (signature !== await sign(payload)) return null;
   if (payload === "staff") return { role: "staff", teamId: null, sessionVersion: null };
+  if (payload === "view") return { role: "view", teamId: null, sessionVersion: null };
   const match = payload.match(/^team:(\d{1,2}):(\d+)$/);
   const teamId = match ? Number(match[1]) : 0;
   const sessionVersion = match ? Number(match[2]) : -1;

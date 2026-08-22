@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 type GameRuntimeEnv = {
   TEAM_PASSWORD?: string;
   STAFF_PASSWORD?: string;
+  VIEW_PASSWORD?: string;
   SESSION_SIGNING_KEY?: string;
 };
 
@@ -14,6 +15,7 @@ export function getRuntimeSecrets() {
   return {
     teamPassword: runtime.TEAM_PASSWORD,
     staffPassword: runtime.STAFF_PASSWORD,
+    viewPassword: runtime.VIEW_PASSWORD || runtime.STAFF_PASSWORD,
     sessionSigningKey: runtime.SESSION_SIGNING_KEY,
   };
 }

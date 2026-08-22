@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LAST_ROUND, getStockPrice, isStockTradable, rounds, stocks, type PriceSchedule, type Stock } from "./game-data";
 import { apiFetch, clearApiSessionToken, setApiSessionToken } from "./api-client";
 
-type Session = { role: "staff"; teamId: null } | { role: "team"; teamId: number };
+type Session = { role: "staff" | "view"; teamId: null } | { role: "team"; teamId: number };
 type Trade = { id: number; team_id: number; ticker: string; action: "buy" | "sell"; quantity: number; price: number; round: number; created_at: string };
 type TeamView = { teamId: number; seedMoney: number; cash: number; totalAsset: number; holdings: Record<string, number>; trades: Trade[]; online?: boolean; lastSeenAt?: string | null };
 type Snapshot = { session: Session; game: { round: number; started: boolean; updatedAt: string }; market: { prices: PriceSchedule }; team: TeamView | null; teams: TeamView[] | null };
@@ -14,6 +14,20 @@ const MAX_ORDER_QUANTITY = 1_000_000;
 const DEFAULT_TEAM_COUNT = 12;
 const MAX_TEAM_COUNT = 30;
 const CLIENT_THEME_KEY = "be-client-theme";
+
+const viewRoundBriefs = [
+  { tags: ["기업 정보", "분산 투자", "초기 포트폴리오"], note: "사업 구조와 위험 요인을 비교해 첫 포트폴리오의 균형을 점검하세요." },
+  { tags: ["학회 성과", "재현성", "기초 연구"], note: "초기 연구성과가 공개됐습니다. 단기 반응과 장기 성장성을 구분해 보세요." },
+  { tags: ["수입 시약", "웻랩 원가", "데이터 기업"], note: "실험재료 의존도가 높은 기업과 계산 중심 기업의 비용 구조가 갈립니다." },
+  { tags: ["신규 변이", "진단·면역", "VACC 상장"], note: "감염 대응 기업이 주목받고 백시노바가 시장에 새로 진입합니다." },
+  { tags: ["감염 우려 해소", "정밀종양학", "테마 전환"], note: "직전 라운드의 강세 테마가 빠르게 바뀔 수 있는 전환 구간입니다." },
+  { tags: ["장기 연구비", "유전체", "코호트"], note: "장기 과제와 대규모 데이터 사업에 예산이 유입되는 흐름을 살펴보세요." },
+  { tags: ["임상 결과", "제조 품질", "종목 차별화"], note: "같은 산업 안에서도 임상 성과와 품질 리스크에 따라 격차가 커집니다." },
+  { tags: ["클라우드 비용", "계산 원가", "웻랩 반등"], note: "데이터 처리 비용 상승이 계산 중심 기업의 수익성에 미치는 영향을 확인하세요." },
+  { tags: ["감염 재확산", "백신", "진단"], note: "감염 대응 수요가 다시 늘며 관련 기업으로 관심이 이동합니다." },
+  { tags: ["백신 안전성", "정밀의료", "대형 수주"], note: "안전성 이슈와 신규 수주가 동시에 발생한 혼합 신호 구간입니다." },
+  { tags: ["기술이전", "최종 평가", "시장 마감"], note: "마지막 계약 발표가 반영됩니다. 최종 수익률과 포트폴리오를 확인하세요." },
+] as const;
 
 type ClientTheme = "dark" | "light";
 type ClientChartMode = "all" | "single";
@@ -317,6 +331,13 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const normalizedId = id.trim().toLowerCase();
+  const accessMode = normalizedId === "staff" ? "staff" : normalizedId === "view" ? "view" : "team";
+  const accessCopy = accessMode === "staff"
+    ? { eyebrow: "ADMIN CONSOLE", title: "운영자 콘솔 로그인", detail: "라운드 진행, 계정 상태와 거래 운영을 관리합니다.", action: "관리 콘솔 입장" }
+    : accessMode === "view"
+      ? { eyebrow: "LIVE DISPLAY", title: "공용 진행 화면 연결", detail: "행사장 전체가 함께 보는 실시간 시장 현황판입니다.", action: "진행 화면 열기" }
+      : { eyebrow: "MARKET ACCESS", title: "모의주식시장 입장", detail: "배정받은 조 번호와 공통 비밀번호로 로그인하세요.", action: "시장 입장" };
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
     try {
@@ -330,16 +351,16 @@ function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
   };
   return <main className="login-shell">
     <div className="login-ambient"><div /><div /><div /></div>
-    <section className="login-card">
+    <section className={`login-card login-card-${accessMode}`}>
       <Brand />
-      <div className="login-copy"><span className="eyebrow">MARKET ACCESS</span><h1>모의주식시장 입장</h1><p>배정받은 조 번호 또는 스태프 계정으로 로그인하세요.</p></div>
+      <div className="login-copy"><span className="eyebrow">{accessCopy.eyebrow}</span><h1>{accessCopy.title}</h1><p>{accessCopy.detail}</p></div>
       <form onSubmit={submit} className="login-form">
-        <label><span>아이디</span><input value={id} onChange={(event) => setId(event.target.value)} placeholder="조 번호 또는 staff" autoComplete="username" autoFocus /></label>
+        <label><span>아이디</span><input value={id} onChange={(event) => setId(event.target.value)} placeholder="조 번호, staff 또는 view" autoComplete="username" autoFocus /></label>
         <label><span>비밀번호</span><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" placeholder="비밀번호 입력" autoComplete="current-password" /></label>
         {error && <div className="form-error">{error}</div>}
-        <button disabled={busy || !id || !password}>{busy ? "확인 중..." : "시장 입장"}<span>→</span></button>
+        <button disabled={busy || !id || !password}>{busy ? "확인 중..." : accessCopy.action}<span>→</span></button>
       </form>
-      <div className="login-hint"><div><strong>참가 조</strong><span>스태프가 설정한 조 번호 · 공통 비밀번호</span></div><div><strong>운영 스태프</strong><span>스태프 전용 계정</span></div></div>
+      <div className="login-hint"><div><strong>참가 조</strong><span>숫자 ID · 거래 화면</span></div><div><strong>운영 스태프</strong><span>staff · 관리 전용</span></div><div><strong>공용 화면</strong><span>view · 읽기 전용</span></div></div>
     </section>
     <p className="fiction-note">모든 기업과 사건은 레크리에이션을 위한 가상 설정입니다.</p>
   </main>;
@@ -358,7 +379,7 @@ function Topbar({ session, round, onLogout, presentation = false, started = true
     <Brand compact />
     <div className="market-center"><span className={`status-dot ${!started ? "pending" : round === LAST_ROUND ? "closed" : ""}`} /><span>{marketLabel}</span><strong>{started ? rounds[round].label : "시작 전"}</strong></div>
     <div className="account-actions">
-      <span>{session.role === "staff" ? "STAFF CONTROL" : `${session.teamId}조 계정`}</span>
+      <span>{session.role === "staff" ? "STAFF CONTROL" : session.role === "view" ? "LIVE DISPLAY" : `${session.teamId}조 계정`}</span>
       {session.role === "team" && clientTheme && onToggleTheme && <button className={`client-theme-toggle ${clientTheme}`} aria-label={`${clientTheme === "dark" ? "화이트" : "다크"} 모드로 전환`} aria-pressed={clientTheme === "dark"} onClick={onToggleTheme}><i aria-hidden="true">{clientTheme === "dark" ? "☾" : "☀"}</i><strong>{clientTheme === "dark" ? "다크" : "화이트"}</strong></button>}
       {session.role === "staff" && onOpenPriceBoard && <button className="price-board-button" onClick={onOpenPriceBoard}>주가 변동표</button>}
       <button onClick={onLogout}>로그아웃</button>
@@ -414,7 +435,7 @@ function SeedSetup({ initial, onStarted, onForceLogout, forceLogoutBusy }: { ini
     updateSeeds(seeds.slice(0, -1));
   };
   const onlineTeams = Array.from({ length: seeds.length }, (_, index) => initial?.find((team) => team.teamId === index + 1)).filter((team) => team?.online).length;
-  return <section className="seed-page"><div className="seed-hero"><span className="eyebrow">INITIAL CAPITAL SETUP</span><h1>조별 시드머니 설정</h1><p>참가 조 수와 각 조의 초기 BE Coin을 확인한 뒤 저장하세요. 저장만으로는 참가자 화면이 열리지 않으며, 스태프가 게임 시작을 눌러야 기준가가 공개됩니다.</p><div className="team-count-control"><div><span>참가 조 구성</span><strong>현재 {seeds.length}개 조</strong><small>로그인 ID는 1부터 {seeds.length}까지 자동으로 배정됩니다.</small></div><div><button disabled={busy !== null || seeds.length <= 1} onClick={removeTeam}>− 마지막 조 삭제</button><button disabled={busy !== null || seeds.length >= MAX_TEAM_COUNT} onClick={addTeam}>＋ 조 추가</button></div></div><div className="seed-presets"><button onClick={() => setAll(1000)}>전체 1,000 BE</button><button onClick={() => setAll(1500)}>전체 1,500 BE</button><button onClick={() => setAll(2000)}>전체 2,000 BE</button></div></div><section className="seed-presence-board"><header><div><span className="eyebrow">TEAM CONNECTIONS</span><h2>조별 접속 상태</h2></div><strong><i />온라인 {onlineTeams}/{seeds.length}</strong></header><div>{seeds.map((_, index) => { const teamId = index + 1; const presence = initial?.find((team) => team.teamId === teamId); return <article className={presence?.online ? "online" : "offline"} key={teamId}><span><i />{teamId}조</span><em>{presence?.online ? "온라인" : "오프라인"}</em><button disabled={!presence || forceLogoutBusy === teamId} onClick={() => onForceLogout(teamId)}>{forceLogoutBusy === teamId ? "처리 중" : "강제 로그아웃"}</button></article>; })}</div></section><div className="seed-grid">{seeds.map((seed, index) => <label key={index}><span><i>{index + 1}</i>{index + 1}조</span><div><input type="number" min="1" step="100" value={seed} onChange={(event) => updateSeeds(seeds.map((value, itemIndex) => itemIndex === index ? Math.max(1, Math.floor(Number(event.target.value) || 1)) : value))} /><em>BE</em></div></label>)}</div>{error && <div className="form-error wide">{error}</div>}{saved && !error && <div className="setup-success" role="status">{seeds.length}개 조의 구성과 시드머니가 저장되었습니다. 참가자들은 아직 대기 중입니다.</div>}<div className="seed-actions"><button className="secondary-button" disabled={busy !== null} onClick={save}>{busy === "save" ? "저장 중..." : "구성·시드머니 저장"}</button><button className="primary-button" disabled={busy !== null} onClick={start}>{busy === "start" ? "게임 시작 중..." : "게임 시작 · 기준가 공개"}<span>→</span></button></div><p className="reset-warning">게임을 시작하면 1~{seeds.length}조의 화면이 약 2초 안에 거래 화면으로 전환됩니다.</p></section>;
+  return <section className="seed-page"><div className="seed-hero"><span className="eyebrow">GAME ADMINISTRATION</span><h1>게임 운영 초기 설정</h1><p>참가 조 구성과 초기 자산을 확정한 뒤 공용 진행 화면과 참가자 화면을 시작합니다.</p><div className="team-count-control"><div><span>참가 조 구성</span><strong>현재 {seeds.length}개 조</strong><small>로그인 ID는 1부터 {seeds.length}까지 자동으로 배정됩니다.</small></div><div><button disabled={busy !== null || seeds.length <= 1} onClick={removeTeam}>− 마지막 조 삭제</button><button disabled={busy !== null || seeds.length >= MAX_TEAM_COUNT} onClick={addTeam}>＋ 조 추가</button></div></div><div className="seed-presets"><button onClick={() => setAll(1000)}>전체 1,000 BE</button><button onClick={() => setAll(1500)}>전체 1,500 BE</button><button onClick={() => setAll(2000)}>전체 2,000 BE</button></div></div><section className="seed-presence-board"><header><div><span className="eyebrow">TEAM CONNECTIONS</span><h2>조별 접속 상태</h2></div><strong><i />온라인 {onlineTeams}/{seeds.length}</strong></header><div>{seeds.map((_, index) => { const teamId = index + 1; const presence = initial?.find((team) => team.teamId === teamId); return <article className={presence?.online ? "online" : "offline"} key={teamId}><span><i />{teamId}조</span><em>{presence?.online ? "온라인" : "오프라인"}</em><button disabled={!presence || forceLogoutBusy === teamId} onClick={() => onForceLogout(teamId)}>{forceLogoutBusy === teamId ? "처리 중" : "강제 로그아웃"}</button></article>; })}</div></section><div className="seed-grid">{seeds.map((seed, index) => <label key={index}><span><i>{index + 1}</i>{index + 1}조</span><div><input type="number" min="1" step="100" value={seed} onChange={(event) => updateSeeds(seeds.map((value, itemIndex) => itemIndex === index ? Math.max(1, Math.floor(Number(event.target.value) || 1)) : value))} /><em>BE</em></div></label>)}</div>{error && <div className="form-error wide">{error}</div>}{saved && !error && <div className="setup-success" role="status">{seeds.length}개 조의 구성과 시드머니가 저장되었습니다. 참가자들은 아직 대기 중입니다.</div>}<div className="seed-actions"><button className="secondary-button" disabled={busy !== null} onClick={save}>{busy === "save" ? "저장 중..." : "구성·시드머니 저장"}</button><button className="primary-button" disabled={busy !== null} onClick={start}>{busy === "start" ? "게임 시작 중..." : "게임 시작 · 기준가 공개"}<span>→</span></button></div><p className="reset-warning">게임을 시작하면 공용 진행 화면과 1~{seeds.length}조의 화면이 약 2초 안에 전환됩니다.</p></section>;
 }
 
 function StockProfile({ stock }: { stock: Stock }) {
@@ -653,10 +674,12 @@ function StaffDashboard({ snapshot, refresh, onLogout, onOpenPriceBoard, onForce
   const round = snapshot.game.round;
   const prices = snapshot.market.prices;
   const [detailTeam, setDetailTeam] = useState<number | null>(null);
-  const [marketTicker, setMarketTicker] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const standings = useMemo(() => [...teams].sort((a, b) => b.totalAsset - a.totalAsset), [teams]);
   const onlineCount = teams.filter((team) => team.online).length;
+  const totalTrades = teams.reduce((sum, team) => sum + team.trades.length, 0);
+  const totalAssets = teams.reduce((sum, team) => sum + team.totalAsset, 0);
+  const recentActivity = useMemo(() => teams.flatMap((team) => team.trades.map((trade) => ({ ...trade, teamId: team.teamId }))).sort((left, right) => right.id - left.id).slice(0, 8), [teams]);
+  const nextEvent = round < LAST_ROUND ? rounds[round + 1] : null;
   const advance = async () => {
     if (!window.confirm(`${round + 1}라운드 주가를 공개할까요?`)) return;
     setBusy(true);
@@ -678,14 +701,48 @@ function StaffDashboard({ snapshot, refresh, onLogout, onOpenPriceBoard, onForce
   };
   const selected = detailTeam ? teams.find((team) => team.teamId === detailTeam) : null;
   if (selected) return <main className="staff-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation onOpenPriceBoard={onOpenPriceBoard} /><StaffTeamDetail team={selected} round={round} prices={prices} onBack={() => setDetailTeam(null)} /></main>;
-  return <main className="staff-shell">
+  return <main className="staff-shell admin-shell">
     <Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation onOpenPriceBoard={onOpenPriceBoard} />
-    <section className="staff-control-band"><div><span className="eyebrow">LIVE MARKET CONTROL</span><h1>{rounds[round].theme}</h1><p>{rounds[round].detail}</p></div><div className="staff-control-actions"><button className="danger-button" disabled={busy} onClick={reset}>게임 초기화</button><button className="primary-button" disabled={busy || round >= LAST_ROUND} onClick={advance}>{round >= LAST_ROUND ? "모든 라운드 종료" : `다음 라운드 공개 · R${round + 1}`}<span>→</span></button></div></section>
-    <section className="staff-presentation-grid">
-      <div className="panel staff-market-panel"><div className="panel-title"><div><span className="eyebrow">ALL STOCKS · LIVE PRICE</span><h2>전체 주식시장</h2></div><div className="round-badge"><span>{round === 0 ? "OPEN" : `ROUND ${round}`}</span><strong>{round}/10</strong></div></div><AllStocksChart round={round} prices={prices} selectedTicker={marketTicker} /><div className="chart-filter-note staff-note">{marketTicker ? `${marketTicker} 단독 차트 · 같은 종목을 다시 누르면 전체 보기` : "종목을 누르면 단독 차트로 전환됩니다."}</div><div className="chart-legend staff">{stocks.map((stock) => <button aria-pressed={marketTicker === stock.ticker} className={marketTicker === stock.ticker ? "selected" : ""} onClick={() => setMarketTicker((current) => current === stock.ticker ? null : stock.ticker)} key={stock.ticker}><i style={{ background: stock.color }} />{stock.name}<strong>{getStockPrice(stock.ticker, round, prices) === null ? "—" : money.format(getStockPrice(stock.ticker, round, prices)!)}</strong></button>)}</div></div>
-      <aside className="panel staff-scoreboard"><div className="panel-title"><div><span className="eyebrow">TEAM ASSET BOARD</span><h2>조별 현재 총 자산</h2></div><span className="staff-online-total"><i />온라인 {onlineCount}/{teams.length}</span></div><div className="scoreboard-list">{standings.map((team, index) => { const pnl = team.totalAsset - team.seedMoney; return <article className={team.online ? "online" : "offline"} key={team.teamId}><button className="scoreboard-team-open" onClick={() => setDetailTeam(team.teamId)}><i>{index + 1}</i><span><strong>{team.teamId}조 <b><i />{team.online ? "온라인" : "오프라인"}</b></strong><small>현금 {money.format(team.cash)} · 거래 {team.trades.length}건</small></span><em>{money.format(team.totalAsset)} <small>BE</small><b className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)}</b></em></button><button className="scoreboard-force-logout" disabled={forceLogoutBusy === team.teamId} onClick={() => onForceLogout(team.teamId)}>{forceLogoutBusy === team.teamId ? "처리 중" : "강제 로그아웃"}</button></article>; })}</div></aside>
-      <section className="individual-market-section"><div className="individual-heading"><div><span className="eyebrow">INDIVIDUAL STOCKS</span><h2>종목별 가격 차트</h2></div><RoundProgress round={round} /></div><div className="mini-chart-grid">{stocks.map((stock) => { const price = getStockPrice(stock.ticker, round, prices); const prior = round > 0 ? getStockPrice(stock.ticker, round - 1, prices) : null; const change = price !== null && prior !== null ? ((price - prior) / prior) * 100 : null; return <article className="panel mini-stock-card" key={stock.ticker}><div><span><i style={{ background: stock.color }} />{stock.ticker}</span><strong>{stock.name}</strong></div><MiniQuote price={price} change={change} /><StockChart stock={stock} round={round} prices={prices} mini /></article>; })}</div></section>
+    <section className="admin-console">
+      <header className="admin-heading"><div><span className="eyebrow">GAME OPERATIONS</span><h1>운영 관리 콘솔</h1><p>게임 상태와 참가 조 접속·거래를 관리합니다. 발표용 정보는 view 화면에 분리되어 있습니다.</p></div><div className="admin-heading-actions"><button onClick={onOpenPriceBoard}>주가 시나리오 관리</button><button className="danger" disabled={busy} onClick={reset}>게임 초기화</button></div></header>
+      <section className="admin-metric-grid"><article><span>진행 상태</span><strong>{round === 0 ? "장 시작" : `${round}라운드`}</strong><small>{round}/10 진행</small></article><article><span>참가 조 접속</span><strong>{onlineCount}<em> / {teams.length}</em></strong><small>{teams.length - onlineCount}개 조 오프라인</small></article><article><span>누적 체결</span><strong>{money.format(totalTrades)}<em>건</em></strong><small>전체 조 거래 합계</small></article><article><span>전체 총자산</span><strong>{money.format(totalAssets)}<em> BE</em></strong><small>실시간 평가 기준</small></article></section>
+      <section className="admin-workspace">
+        <div className="panel admin-team-panel"><div className="admin-panel-heading"><div><span className="eyebrow">TEAM MANAGEMENT</span><h2>참가 조 관리</h2></div><span className="admin-live-count"><i />{onlineCount} online</span></div><div className="admin-team-table"><table><thead><tr><th>조</th><th>접속</th><th>총 자산</th><th>수익률</th><th>현금</th><th>거래</th><th>계정 작업</th></tr></thead><tbody>{teams.map((team) => { const returnRate = team.seedMoney ? ((team.totalAsset - team.seedMoney) / team.seedMoney) * 100 : 0; return <tr key={team.teamId}><td><button className="admin-team-link" onClick={() => setDetailTeam(team.teamId)}>{team.teamId}조</button></td><td><span className={`admin-presence ${team.online ? "online" : "offline"}`}><i />{team.online ? "온라인" : "오프라인"}</span></td><td><strong>{money.format(team.totalAsset)} BE</strong></td><td><span className={returnRate >= 0 ? "up" : "down"}>{returnRate >= 0 ? "+" : ""}{returnRate.toFixed(1)}%</span></td><td>{money.format(team.cash)} BE</td><td>{team.trades.length}건</td><td><div className="admin-row-actions"><button onClick={() => setDetailTeam(team.teamId)}>상세</button><button className="logout" disabled={forceLogoutBusy === team.teamId} onClick={() => onForceLogout(team.teamId)}>{forceLogoutBusy === team.teamId ? "처리 중" : "강제 로그아웃"}</button></div></td></tr>; })}</tbody></table></div></div>
+        <aside className="admin-side-column">
+          <section className="panel admin-round-panel"><div className="admin-panel-heading"><div><span className="eyebrow">ROUND CONTROL</span><h2>라운드 제어</h2></div><strong>R{round}</strong></div><div className="admin-current-event"><span>현재 공지</span><h3>{rounds[round].theme}</h3><p>{rounds[round].detail}</p></div>{nextEvent && <div className="admin-next-event"><span>다음 공개</span><strong>R{round + 1} · {nextEvent.theme}</strong></div>}<button className="admin-advance" disabled={busy || round >= LAST_ROUND} onClick={advance}>{round >= LAST_ROUND ? "모든 라운드 종료" : `R${round + 1} 공개 및 진행`}<span>→</span></button><RoundProgress round={round} /></section>
+          <section className="panel admin-activity-panel"><div className="admin-panel-heading"><div><span className="eyebrow">RECENT ACTIVITY</span><h2>최근 체결</h2></div><span>{recentActivity.length}건 표시</span></div><div className="admin-activity-list">{recentActivity.map((trade) => <article key={trade.id}><span className={trade.action}>{trade.action === "buy" ? "매수" : "매도"}</span><p><strong>{trade.teamId}조 · {trade.ticker}</strong><small>R{trade.round} · {trade.quantity}주 × {money.format(trade.price)} BE</small></p><em>{money.format(trade.quantity * trade.price)} BE</em></article>)}{recentActivity.length === 0 && <p className="admin-empty">아직 체결된 거래가 없습니다.</p>}</div></section>
+        </aside>
+      </section>
     </section>
+  </main>;
+}
+
+function ViewDashboard({ snapshot, onLogout }: { snapshot: Snapshot; onLogout: () => void }) {
+  const teams = snapshot.teams ?? [];
+  const round = snapshot.game.round;
+  const prices = snapshot.market.prices;
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const update = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+  const standings = useMemo(() => teams.map((team) => ({ ...team, returnRate: team.seedMoney ? ((team.totalAsset - team.seedMoney) / team.seedMoney) * 100 : 0 })).sort((left, right) => right.returnRate - left.returnRate), [teams]);
+  const quotes = useMemo(() => stocks.map((stock) => { const price = getStockPrice(stock.ticker, round, prices); const previous = round > 0 ? getStockPrice(stock.ticker, round - 1, prices) : null; return { stock, price, change: price !== null && previous !== null && previous > 0 ? ((price - previous) / previous) * 100 : null }; }), [prices, round]);
+  const brief = viewRoundBriefs[round];
+  const maxReturn = Math.max(1, ...standings.map((team) => Math.abs(team.returnRate)));
+  const toggleFullscreen = async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  };
+  return <main className={`view-shell ${teams.length > 16 ? "dense" : ""}`}>
+    <header className="view-header"><Brand compact /><div className="view-market-status"><i className={!snapshot.game.started ? "ready" : round >= LAST_ROUND ? "closed" : ""} /><span>{!snapshot.game.started ? "GAME READY" : round >= LAST_ROUND ? "MARKET CLOSED" : "LIVE MARKET"}</span><strong>{snapshot.game.started ? rounds[round].label : "시작 대기"}</strong></div><div className="view-screen-actions"><button onClick={toggleFullscreen}>{fullscreen ? "전체화면 종료" : "전체화면"}</button><button onClick={onLogout}>로그아웃</button></div></header>
+    <section className="view-event-banner" key={`${snapshot.game.started}-${round}`}><div className="view-round-mark"><span>{round === 0 ? "OPEN" : "ROUND"}</span><strong>{round}</strong><small>/ 10</small></div><div className="view-event-copy"><span className="eyebrow">{snapshot.game.started ? "CURRENT MARKET EVENT" : "MARKET PREPARATION"}</span><h1>{snapshot.game.started ? rounds[round].theme : "게임 시작을 준비하고 있습니다"}</h1><p>{snapshot.game.started ? rounds[round].detail : "스태프가 참가 조와 시드머니를 확인한 뒤 시장을 시작합니다."}</p></div><div className="view-event-tags">{brief.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>
+    <section className="view-dashboard-grid">
+      <section className="view-market-card"><header><div><span className="eyebrow">LIVE MARKET OVERVIEW</span><h2>전체 시장 · 실제 주가</h2></div><span>2초마다 자동 갱신</span></header><AllStocksChart round={round} prices={prices} /><div className="view-stock-board">{quotes.map(({ stock, price, change }) => <article key={stock.ticker}><i style={{ background: stock.color }} /><div><strong>{stock.name}</strong><small>{stock.ticker} · {stock.field}</small></div><em>{price === null ? "상장 전" : `${money.format(price)} BE`}<small className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`}</small></em></article>)}</div></section>
+      <aside className="view-ranking-card"><header><div><span className="eyebrow">TEAM PERFORMANCE</span><h2>조별 수익률</h2></div><span>{teams.length}개 조</span></header><div className="view-ranking-grid">{standings.map((team, index) => <article key={team.teamId}><i>{index + 1}</i><div><strong>{team.teamId}조</strong><span><b style={{ width: `${Math.max(3, Math.abs(team.returnRate) / maxReturn * 100)}%` }} className={team.returnRate >= 0 ? "positive" : "negative"} /></span></div><em className={team.returnRate >= 0 ? "up" : "down"}>{team.returnRate >= 0 ? "+" : ""}{team.returnRate.toFixed(1)}%<small>{money.format(team.totalAsset)} BE</small></em></article>)}</div><section className="view-reference"><span>MARKET NOTE</span><strong>이번 라운드 참고 포인트</strong><p>{brief.note}</p></section></aside>
+    </section>
+    <footer className="view-round-footer"><span>ROUND PROGRESS</span><RoundProgress round={round} /></footer>
   </main>;
 }
 
@@ -750,6 +807,7 @@ export default function Home() {
   if (!session) return <><LoginScreen onLogin={login} />{error && <div className="toast error">{error}</div>}</>;
   if (!snapshot) return <main className="loading-shell"><Brand /><div className="loading-line"><span /></div><p>게임 데이터를 연결하고 있습니다</p></main>;
   if (session.role === "staff" && priceBoardOpen) return <PriceScheduleEditor snapshot={snapshot} refresh={refresh} onBack={() => setPriceBoardOpen(false)} onLogout={logout} />;
+  if (session.role === "view") return <ViewDashboard snapshot={snapshot} onLogout={logout} />;
   if (!snapshot.game.started) {
     if (session.role === "staff") return <main className="staff-shell"><Topbar session={session} round={0} onLogout={logout} presentation started={false} onOpenPriceBoard={() => setPriceBoardOpen(true)} /><SeedSetup initial={snapshot.teams} onStarted={refresh} onForceLogout={forceLogoutTeam} forceLogoutBusy={forceLogoutBusy} /></main>;
     return <WaitingScreen session={session} onLogout={logout} />;

@@ -9,6 +9,7 @@ const projectRoot = resolve(new URL("..", import.meta.url).pathname);
 const allowedOrigin = "https://notdatum.github.io";
 const teamPassword = "test-team-password";
 const staffPassword = "test-staff-password";
+const viewPassword = "test-view-password";
 const signingKey = "test-signing-key-with-more-than-32-characters";
 
 async function waitForServer(baseUrl, child, output) {
@@ -36,6 +37,7 @@ async function startServer(port, dataDir) {
       ALLOWED_ORIGINS: allowedOrigin,
       TEAM_PASSWORD: teamPassword,
       STAFF_PASSWORD: staffPassword,
+      VIEW_PASSWORD: viewPassword,
       SESSION_SIGNING_KEY: signingKey,
       NODE_NO_WARNINGS: "1",
     },
@@ -79,7 +81,7 @@ async function login(baseUrl, id, password) {
   return data;
 }
 
-test("shares staff and team state through the public game server and keeps it after restart", async () => {
+test("shares staff, view, and team state through the public game server and keeps it after restart", async () => {
   const dataDir = await mkdtemp(resolve(tmpdir(), "be-remote-server-"));
   const port = 43000 + Math.floor(Math.random() * 1000);
   let running;
@@ -95,6 +97,8 @@ test("shares staff and team state through the public game server and keeps it af
 
     const staff = await login(running.baseUrl, "staff", staffPassword);
     assert.deepEqual(staff.session, { role: "staff", teamId: null });
+    const view = await login(running.baseUrl, "view", viewPassword);
+    assert.deepEqual(view.session, { role: "view", teamId: null });
 
     const seeds = Array.from({ length: 5 }, (_, index) => 1000 + index * 100);
     const setup = await api(running.baseUrl, "/api/game/setup", {
@@ -112,6 +116,22 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(preparedData.teams[1].seedMoney, 1100);
     assert.equal(preparedData.teams[0].online, false);
     assert.equal(preparedData.teams[0].lastSeenAt, null);
+
+    const preparedViewSnapshot = await api(running.baseUrl, "/api/game", { token: view.token });
+    const preparedViewData = await preparedViewSnapshot.json();
+    assert.equal(preparedViewData.teams.length, 5);
+    assert.equal(preparedViewData.team, null);
+    assert.equal(preparedViewData.market.prices.IMMU[0], 120);
+    assert.equal(preparedViewData.market.prices.IMMU[1], null);
+
+    const viewDeniedStart = await api(running.baseUrl, "/api/game/start", { method: "POST", token: view.token });
+    assert.equal(viewDeniedStart.status, 403);
+    const viewDeniedForceLogout = await api(running.baseUrl, "/api/game/force-logout", {
+      method: "POST",
+      token: view.token,
+      body: { teamId: 1 },
+    });
+    assert.equal(viewDeniedForceLogout.status, 403);
 
     const updateFuturePrice = await api(running.baseUrl, "/api/game/prices", {
       method: "POST",
@@ -200,6 +220,24 @@ test("shares staff and team state through the public game server and keeps it af
     assert.equal(staffData.teams[0].online, true);
     assert.equal(staffData.team, null);
     assert.equal(staffData.market.prices.IMMU[2], 777);
+
+    const viewSnapshot = await api(running.baseUrl, "/api/game", { token: view.token });
+    const viewData = await viewSnapshot.json();
+    assert.equal(viewData.game.round, 1);
+    assert.equal(viewData.teams[0].totalAsset, 1000);
+    assert.equal(viewData.teams[0].cash, undefined);
+    assert.equal(viewData.teams[0].holdings, undefined);
+    assert.equal(viewData.teams[0].trades, undefined);
+    assert.equal(viewData.team, null);
+    assert.equal(viewData.market.prices.IMMU[1], 149);
+    assert.equal(viewData.market.prices.IMMU[2], null);
+
+    const viewDeniedPriceUpdate = await api(running.baseUrl, "/api/game/prices", {
+      method: "POST",
+      token: view.token,
+      body: { updates: [{ ticker: "IMMU", round: 3, price: 888 }] },
+    });
+    assert.equal(viewDeniedPriceUpdate.status, 403);
 
     const deniedPriceUpdate = await api(running.baseUrl, "/api/game/prices", {
       method: "POST",
