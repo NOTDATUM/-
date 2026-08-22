@@ -19,13 +19,13 @@ A real-time mock stock market built for a Department of Biological Sciences recr
 
 ## Architecture
 
-| Component | Responsibility |
-| --- | --- |
-| GitHub Pages | Hosts the static React client |
-| Node.js game server | Handles authentication, sessions, rounds, trades, and portfolio calculations |
-| SQLite | Stores game state, teams, holdings, trades, price schedules, and session presence |
-| Caddy | Provides HTTPS and proxies requests to the game server |
-| Docker Compose | Runs the backend and keeps the SQLite database in a persistent volume |
+| Component           | Responsibility                                                                    |
+| ------------------- | --------------------------------------------------------------------------------- |
+| GitHub Pages        | Hosts the static React client                                                     |
+| Node.js game server | Handles authentication, sessions, rounds, trades, and portfolio calculations      |
+| SQLite              | Stores game state, teams, holdings, trades, price schedules, and session presence |
+| Caddy               | Provides HTTPS and proxies requests to the game server                            |
+| Docker Compose      | Runs the backend and keeps the SQLite database in a persistent volume             |
 
 The browser client polls the shared backend every two seconds, so devices do not need to be connected to the same network.
 
@@ -65,15 +65,15 @@ node --env-file=server/config.env server/index.mjs
 
 Required settings:
 
-| Variable | Description |
-| --- | --- |
-| `PORT` | Backend HTTP port |
-| `DATA_DIR` | Directory containing the SQLite database |
-| `ALLOWED_ORIGINS` | Comma-separated client origins allowed by CORS |
-| `TEAM_PASSWORD` | Shared password for team accounts |
-| `STAFF_PASSWORD` | Password for the `staff` account |
-| `VIEW_PASSWORD` | Password for the read-only `view` account; falls back to `STAFF_PASSWORD` when omitted |
-| `SESSION_SIGNING_KEY` | Random signing key with at least 32 characters |
+| Variable              | Description                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `PORT`                | Backend HTTP port                                                                      |
+| `DATA_DIR`            | Directory containing the SQLite database                                               |
+| `ALLOWED_ORIGINS`     | Comma-separated client origins allowed by CORS                                         |
+| `TEAM_PASSWORD`       | Shared password for team accounts                                                      |
+| `STAFF_PASSWORD`      | Password for the `staff` account                                                       |
+| `VIEW_PASSWORD`       | Password for the read-only `view` account; falls back to `STAFF_PASSWORD` when omitted |
+| `SESSION_SIGNING_KEY` | Random signing key with at least 32 characters                                         |
 
 Team login IDs are numeric and assigned from `1` through the configured team count. The administration login ID is `staff`, and the public presentation login ID is `view`.
 
@@ -113,13 +113,24 @@ The workflow builds `github-pages-dist` and publishes it as the Pages artifact.
 ## Project Structure
 
 ```text
-app/                 React application and API routes
-server/              Standalone Node.js and SQLite game server
-shared/              Shared stock and round data
-scripts/             Local network server helpers
-deploy/aws/          EC2, Docker, and Caddy deployment files
-tests/               Build and backend integration tests
-.github/workflows/   GitHub Pages deployment workflow
+app/
+  client/             Role-specific screens, charts, shared UI, and types
+  api/                Optional Vinext/Cloudflare API routes
+  lib/                Session, configuration, and audit helpers
+  page.tsx            Client application composition root
+server/
+  index.mjs           AWS/Node.js server composition root
+  config.mjs          Environment configuration
+  database.mjs        SQLite schema, migrations, and initialization
+  session-service.mjs Authentication and session lifecycle
+  game-service.mjs    Game rules and state mutations
+  router.mjs          HTTP endpoint routing
+  http.mjs            CORS, JSON, and error response utilities
+db/                   Optional Cloudflare D1 data access
+scripts/              Local network server helpers
+deploy/aws/           EC2, Docker, and Caddy deployment files
+tests/                Build and backend integration tests
+.github/workflows/    GitHub Pages deployment workflow
 ```
 
 ## References

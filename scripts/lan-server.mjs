@@ -19,7 +19,9 @@ const requiredFiles = [
 const runtimeEnvPath = resolve(projectRoot, "dist/server/.dev.vars");
 
 if (!existsSync(requiredFiles[0])) {
-  console.error(".dev.vars 파일이 없습니다. 로그인 비밀번호 설정을 먼저 준비해 주세요.");
+  console.error(
+    ".dev.vars 파일이 없습니다. 로그인 비밀번호 설정을 먼저 준비해 주세요.",
+  );
   process.exit(1);
 }
 
@@ -33,13 +35,18 @@ copyFileSync(requiredFiles[0], runtimeEnvPath);
 const addresses = [];
 for (const [name, entries] of Object.entries(networkInterfaces())) {
   for (const entry of entries ?? []) {
-    if (entry.family === "IPv4" && !entry.internal) addresses.push({ name, address: entry.address });
+    if (entry.family === "IPv4" && !entry.internal)
+      addresses.push({ name, address: entry.address });
   }
 }
 
 addresses.sort((left, right) => {
-  const privateAddress = (value) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(value) ? 0 : 1;
-  return privateAddress(left.address) - privateAddress(right.address) || left.name.localeCompare(right.name);
+  const privateAddress = (value) =>
+    /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(value) ? 0 : 1;
+  return (
+    privateAddress(left.address) - privateAddress(right.address) ||
+    left.name.localeCompare(right.name)
+  );
 });
 
 console.log("\n────────────────────────────────────────────────────");
@@ -48,13 +55,16 @@ console.log("──────────────────────�
 console.log(`  스태프 노트북: http://localhost:${port}`);
 if (addresses.length) {
   console.log("  참가 조 접속 주소:");
-  for (const item of addresses) console.log(`    http://${item.address}:${port}  (${item.name})`);
+  for (const item of addresses)
+    console.log(`    http://${item.address}:${port}  (${item.name})`);
 } else {
   console.log(`  참가 조 접속 주소: http://<스태프 노트북 IP>:${port}`);
 }
 console.log("\n  모든 노트북을 같은 Wi-Fi에 연결한 뒤 같은 주소를 여세요.");
 console.log("  macOS 방화벽 창이 뜨면 ‘허용’을 눌러 주세요.");
-console.log("  이 창을 닫으면 서버가 멈추며, 게임 데이터는 .lan-data에 보존됩니다.");
+console.log(
+  "  이 창을 닫으면 서버가 멈추며, 게임 데이터는 .lan-data에 보존됩니다.",
+);
 console.log("────────────────────────────────────────────────────\n");
 
 const wranglerBin = resolve(
@@ -63,19 +73,28 @@ const wranglerBin = resolve(
   process.platform === "win32" ? "wrangler.cmd" : "wrangler",
 );
 
-const child = spawn(wranglerBin, [
-  "dev",
-  "--config", "dist/server/wrangler.json",
-  "--local",
-  "--ip", "0.0.0.0",
-  "--port", port,
-  "--persist-to", ".lan-data",
-  "--log-level", "warn",
-], {
-  cwd: projectRoot,
-  env: { ...process.env, WRANGLER_LOG_PATH: ".wrangler/lan-server.log" },
-  stdio: "inherit",
-});
+const child = spawn(
+  wranglerBin,
+  [
+    "dev",
+    "--config",
+    "dist/server/wrangler.json",
+    "--local",
+    "--ip",
+    "0.0.0.0",
+    "--port",
+    port,
+    "--persist-to",
+    ".lan-data",
+    "--log-level",
+    "warn",
+  ],
+  {
+    cwd: projectRoot,
+    env: { ...process.env, WRANGLER_LOG_PATH: ".wrangler/lan-server.log" },
+    stdio: "inherit",
+  },
+);
 
 const removeRuntimeEnv = () => {
   try {

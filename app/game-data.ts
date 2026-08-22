@@ -21,13 +21,21 @@ export const stocks = gameData.stocks as Stock[];
 export const rounds = gameData.rounds;
 export const LAST_ROUND = gameData.lastRound;
 
-export function getStockPrice(ticker: string, round: number, schedule?: PriceSchedule) {
+export function getStockPrice(
+  ticker: string,
+  round: number,
+  schedule?: PriceSchedule,
+) {
   if (schedule && Object.prototype.hasOwnProperty.call(schedule, ticker)) {
     return schedule[ticker]?.[round] ?? null;
   }
   return stocks.find((stock) => stock.ticker === ticker)?.prices[round] ?? null;
 }
 
-export function isStockTradable(ticker: string, round: number, schedule?: PriceSchedule) {
+export function isStockTradable(
+  ticker: string,
+  round: number,
+  schedule?: PriceSchedule,
+) {
   return round < LAST_ROUND && getStockPrice(ticker, round, schedule) !== null;
 }

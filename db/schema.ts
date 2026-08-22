@@ -1,11 +1,18 @@
 import { sql } from "drizzle-orm";
-import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from "drizzle-orm/sqlite-core";
 
 export const gameState = sqliteTable("game_state", {
   id: integer("id").primaryKey(),
   round: integer("round").notNull().default(0),
   started: integer("started").notNull().default(0),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const teams = sqliteTable("teams", {
@@ -14,11 +21,15 @@ export const teams = sqliteTable("teams", {
   cash: integer("cash").notNull().default(1000),
 });
 
-export const holdings = sqliteTable("holdings", {
-  teamId: integer("team_id").notNull(),
-  ticker: text("ticker").notNull(),
-  shares: integer("shares").notNull().default(0),
-}, (table) => [primaryKey({ columns: [table.teamId, table.ticker] })]);
+export const holdings = sqliteTable(
+  "holdings",
+  {
+    teamId: integer("team_id").notNull(),
+    ticker: text("ticker").notNull(),
+    shares: integer("shares").notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.teamId, table.ticker] })],
+);
 
 export const trades = sqliteTable("trades", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -28,7 +39,9 @@ export const trades = sqliteTable("trades", {
   quantity: integer("quantity").notNull(),
   price: integer("price").notNull(),
   round: integer("round").notNull(),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
   canceledAt: text("canceled_at"),
 });
 
@@ -38,5 +51,7 @@ export const adminAuditLogs = sqliteTable("admin_audit_logs", {
   action: text("action").notNull(),
   summary: text("summary").notNull(),
   details: text("details"),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });

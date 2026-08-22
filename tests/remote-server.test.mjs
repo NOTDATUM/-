@@ -15,7 +15,8 @@ const signingKey = "test-signing-key-with-more-than-32-characters";
 
 async function waitForServer(baseUrl, child, output) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    if (child.exitCode !== null) throw new Error(`server exited early\n${output.text}`);
+    if (child.exitCode !== null)
+      throw new Error(`server exited early\n${output.text}`);
     try {
       const response = await fetch(`${baseUrl}/health`);
       if (response.ok) return;
@@ -44,8 +45,12 @@ async function startServer(port, dataDir) {
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
-  child.stdout.on("data", (chunk) => { output.text += chunk; });
-  child.stderr.on("data", (chunk) => { output.text += chunk; });
+  child.stdout.on("data", (chunk) => {
+    output.text += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    output.text += chunk;
+  });
   const baseUrl = `http://127.0.0.1:${port}`;
   await waitForServer(baseUrl, child, output);
   return { child, baseUrl, output };
@@ -55,7 +60,10 @@ async function stopServer(child) {
   if (child.exitCode !== null) return;
   child.kill("SIGTERM");
   await new Promise((resolveExit, rejectExit) => {
-    const timeout = setTimeout(() => rejectExit(new Error("server did not stop")), 3000);
+    const timeout = setTimeout(
+      () => rejectExit(new Error("server did not stop")),
+      3000,
+    );
     child.once("exit", () => {
       clearTimeout(timeout);
       resolveExit();
@@ -63,7 +71,11 @@ async function stopServer(child) {
   });
 }
 
-async function api(baseUrl, path, { token, method = "GET", body, origin = allowedOrigin } = {}) {
+async function api(
+  baseUrl,
+  path,
+  { token, method = "GET", body, origin = allowedOrigin } = {},
+) {
   const headers = { Origin: origin };
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -75,7 +87,10 @@ async function api(baseUrl, path, { token, method = "GET", body, origin = allowe
 }
 
 async function login(baseUrl, id, password) {
-  const response = await api(baseUrl, "/api/auth", { method: "POST", body: { id, password } });
+  const response = await api(baseUrl, "/api/auth", {
+    method: "POST",
+    body: { id, password },
+  });
   const data = await response.json();
   assert.equal(response.status, 200, data.error);
   assert.ok(data.token);
@@ -102,7 +117,9 @@ test("migrates an existing game database for cancellations and audit logs", asyn
   try {
     running = await startServer(port, dataDir);
     const staff = await login(running.baseUrl, "staff", staffPassword);
-    const snapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const snapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const data = await snapshot.json();
     assert.equal(snapshot.status, 200);
     assert.deepEqual(data.auditLogs, []);
@@ -111,7 +128,11 @@ test("migrates an existing game database for cancellations and audit logs", asyn
     const migratedDb = new DatabaseSync(databasePath);
     const columns = migratedDb.prepare("PRAGMA table_info(trades)").all();
     assert.ok(columns.some((column) => column.name === "canceled_at"));
-    const auditTable = migratedDb.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'admin_audit_logs'").get();
+    const auditTable = migratedDb
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'admin_audit_logs'",
+      )
+      .get();
     assert.equal(auditTable.name, "admin_audit_logs");
     migratedDb.close();
   } finally {
@@ -147,7 +168,9 @@ test("shares staff, view, and team state through the public game server and keep
     });
     assert.equal(setup.status, 200);
 
-    const preparedSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const preparedSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const preparedData = await preparedSnapshot.json();
     assert.equal(preparedData.game.started, false);
     assert.equal(preparedData.game.round, 0);
@@ -156,7 +179,9 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(preparedData.teams[0].online, false);
     assert.equal(preparedData.teams[0].lastSeenAt, null);
 
-    const preparedViewSnapshot = await api(running.baseUrl, "/api/game", { token: view.token });
+    const preparedViewSnapshot = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
     const preparedViewData = await preparedViewSnapshot.json();
     assert.equal(preparedViewData.teams.length, 5);
     assert.equal(preparedViewData.team, null);
@@ -166,13 +191,20 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(preparedViewData.market.prices.IMMU[0], 120);
     assert.equal(preparedViewData.market.prices.IMMU[1], null);
 
-    const viewDeniedStart = await api(running.baseUrl, "/api/game/start", { method: "POST", token: view.token });
-    assert.equal(viewDeniedStart.status, 403);
-    const viewDeniedForceLogout = await api(running.baseUrl, "/api/game/force-logout", {
+    const viewDeniedStart = await api(running.baseUrl, "/api/game/start", {
       method: "POST",
       token: view.token,
-      body: { teamId: 1 },
     });
+    assert.equal(viewDeniedStart.status, 403);
+    const viewDeniedForceLogout = await api(
+      running.baseUrl,
+      "/api/game/force-logout",
+      {
+        method: "POST",
+        token: view.token,
+        body: { teamId: 1 },
+      },
+    );
     assert.equal(viewDeniedForceLogout.status, 403);
 
     const updateFuturePrice = await api(running.baseUrl, "/api/game/prices", {
@@ -189,16 +221,22 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(removedTeamLogin.status, 401);
 
     let team = await login(running.baseUrl, "1", teamPassword);
-    const onlineSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const onlineSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const onlineData = await onlineSnapshot.json();
     assert.equal(onlineData.teams[0].online, true);
     assert.ok(onlineData.teams[0].lastSeenAt);
 
-    const deniedForceLogout = await api(running.baseUrl, "/api/game/force-logout", {
-      method: "POST",
-      token: team.token,
-      body: { teamId: 2 },
-    });
+    const deniedForceLogout = await api(
+      running.baseUrl,
+      "/api/game/force-logout",
+      {
+        method: "POST",
+        token: team.token,
+        body: { teamId: 2 },
+      },
+    );
     assert.equal(deniedForceLogout.status, 403);
 
     const forceLogout = await api(running.baseUrl, "/api/game/force-logout", {
@@ -208,9 +246,13 @@ test("shares staff, view, and team state through the public game server and keep
     });
     assert.deepEqual(await forceLogout.json(), { ok: true, teamId: 1 });
 
-    const invalidatedSession = await api(running.baseUrl, "/api/game", { token: team.token });
+    const invalidatedSession = await api(running.baseUrl, "/api/game", {
+      token: team.token,
+    });
     assert.equal(invalidatedSession.status, 401);
-    const offlineSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const offlineSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const offlineData = await offlineSnapshot.json();
     assert.equal(offlineData.teams[0].online, false);
     assert.equal(offlineData.teams[0].lastSeenAt, null);
@@ -223,10 +265,16 @@ test("shares staff, view, and team state through the public game server and keep
     });
     assert.equal(blockedTrade.status, 400);
 
-    const deniedStart = await api(running.baseUrl, "/api/game/start", { method: "POST", token: team.token });
+    const deniedStart = await api(running.baseUrl, "/api/game/start", {
+      method: "POST",
+      token: team.token,
+    });
     assert.equal(deniedStart.status, 403);
 
-    const start = await api(running.baseUrl, "/api/game/start", { method: "POST", token: staff.token });
+    const start = await api(running.baseUrl, "/api/game/start", {
+      method: "POST",
+      token: staff.token,
+    });
     assert.deepEqual(await start.json(), { round: 0, started: true });
 
     const lockedPrice = await api(running.baseUrl, "/api/game/prices", {
@@ -236,7 +284,10 @@ test("shares staff, view, and team state through the public game server and keep
     });
     assert.equal(lockedPrice.status, 400);
 
-    const round = await api(running.baseUrl, "/api/game/round", { method: "POST", token: staff.token });
+    const round = await api(running.baseUrl, "/api/game/round", {
+      method: "POST",
+      token: staff.token,
+    });
     assert.deepEqual(await round.json(), { round: 1 });
 
     const trade = await api(running.baseUrl, "/api/game/trade", {
@@ -244,9 +295,16 @@ test("shares staff, view, and team state through the public game server and keep
       token: team.token,
       body: { ticker: "IMMU", action: "buy", quantity: 2 },
     });
-    assert.deepEqual(await trade.json(), { ok: true, price: 149, quantity: 2, action: "buy" });
+    assert.deepEqual(await trade.json(), {
+      ok: true,
+      price: 149,
+      quantity: 2,
+      action: "buy",
+    });
 
-    const teamSnapshot = await api(running.baseUrl, "/api/game", { token: team.token });
+    const teamSnapshot = await api(running.baseUrl, "/api/game", {
+      token: team.token,
+    });
     const teamData = await teamSnapshot.json();
     assert.equal(teamData.game.round, 1);
     assert.equal(teamData.team.cash, 702);
@@ -255,7 +313,9 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(teamData.market.prices.IMMU[1], 149);
     assert.equal(teamData.market.prices.IMMU[2], null);
 
-    const staffSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const staffSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const staffData = await staffSnapshot.json();
     assert.equal(staffData.teams[0].cash, 702);
     assert.equal(staffData.teams[0].trades.length, 1);
@@ -263,7 +323,9 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(staffData.team, null);
     assert.equal(staffData.market.prices.IMMU[2], 777);
 
-    const viewSnapshot = await api(running.baseUrl, "/api/game", { token: view.token });
+    const viewSnapshot = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
     const viewData = await viewSnapshot.json();
     assert.equal(viewData.game.round, 1);
     assert.equal(viewData.teams[0].returnRate, 0);
@@ -275,11 +337,15 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(viewData.market.prices.IMMU[1], 149);
     assert.equal(viewData.market.prices.IMMU[2], null);
 
-    const viewDeniedPriceUpdate = await api(running.baseUrl, "/api/game/prices", {
-      method: "POST",
-      token: view.token,
-      body: { updates: [{ ticker: "IMMU", round: 3, price: 888 }] },
-    });
+    const viewDeniedPriceUpdate = await api(
+      running.baseUrl,
+      "/api/game/prices",
+      {
+        method: "POST",
+        token: view.token,
+        body: { updates: [{ ticker: "IMMU", round: 3, price: 888 }] },
+      },
+    );
     assert.equal(viewDeniedPriceUpdate.status, 403);
 
     const deniedPriceUpdate = await api(running.baseUrl, "/api/game/prices", {
@@ -289,17 +355,25 @@ test("shares staff, view, and team state through the public game server and keep
     });
     assert.equal(deniedPriceUpdate.status, 403);
 
-    const viewDeniedCancel = await api(running.baseUrl, "/api/game/cancel-trade", {
-      method: "POST",
-      token: view.token,
-      body: { tradeId: staffData.teams[0].trades[0].id },
-    });
+    const viewDeniedCancel = await api(
+      running.baseUrl,
+      "/api/game/cancel-trade",
+      {
+        method: "POST",
+        token: view.token,
+        body: { tradeId: staffData.teams[0].trades[0].id },
+      },
+    );
     assert.equal(viewDeniedCancel.status, 403);
-    const teamDeniedCancel = await api(running.baseUrl, "/api/game/cancel-trade", {
-      method: "POST",
-      token: team.token,
-      body: { tradeId: staffData.teams[0].trades[0].id },
-    });
+    const teamDeniedCancel = await api(
+      running.baseUrl,
+      "/api/game/cancel-trade",
+      {
+        method: "POST",
+        token: team.token,
+        body: { tradeId: staffData.teams[0].trades[0].id },
+      },
+    );
     assert.equal(teamDeniedCancel.status, 403);
 
     const sellTrade = await api(running.baseUrl, "/api/game/trade", {
@@ -307,17 +381,32 @@ test("shares staff, view, and team state through the public game server and keep
       token: team.token,
       body: { ticker: "IMMU", action: "sell", quantity: 1 },
     });
-    assert.deepEqual(await sellTrade.json(), { ok: true, price: 149, quantity: 1, action: "sell" });
-    const staffAfterSell = await api(running.baseUrl, "/api/game", { token: staff.token });
+    assert.deepEqual(await sellTrade.json(), {
+      ok: true,
+      price: 149,
+      quantity: 1,
+      action: "sell",
+    });
+    const staffAfterSell = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const staffAfterSellData = await staffAfterSell.json();
-    const sellTradeId = staffAfterSellData.teams[0].trades.find((item) => item.action === "sell").id;
+    const sellTradeId = staffAfterSellData.teams[0].trades.find(
+      (item) => item.action === "sell",
+    ).id;
     const cancelSell = await api(running.baseUrl, "/api/game/cancel-trade", {
       method: "POST",
       token: staff.token,
       body: { tradeId: sellTradeId },
     });
-    assert.deepEqual(await cancelSell.json(), { ok: true, tradeId: sellTradeId, teamId: 1 });
-    const afterSellCancel = await api(running.baseUrl, "/api/game", { token: team.token });
+    assert.deepEqual(await cancelSell.json(), {
+      ok: true,
+      tradeId: sellTradeId,
+      teamId: 1,
+    });
+    const afterSellCancel = await api(running.baseUrl, "/api/game", {
+      token: team.token,
+    });
     const afterSellCancelData = await afterSellCancel.json();
     assert.equal(afterSellCancelData.team.cash, 702);
     assert.equal(afterSellCancelData.team.holdings.IMMU, 2);
@@ -328,47 +417,77 @@ test("shares staff, view, and team state through the public game server and keep
       token: staff.token,
       body: { tradeId: staffData.teams[0].trades[0].id },
     });
-    assert.deepEqual(await cancel.json(), { ok: true, tradeId: staffData.teams[0].trades[0].id, teamId: 1 });
-
-    const duplicateCancel = await api(running.baseUrl, "/api/game/cancel-trade", {
-      method: "POST",
-      token: staff.token,
-      body: { tradeId: staffData.teams[0].trades[0].id },
+    assert.deepEqual(await cancel.json(), {
+      ok: true,
+      tradeId: staffData.teams[0].trades[0].id,
+      teamId: 1,
     });
+
+    const duplicateCancel = await api(
+      running.baseUrl,
+      "/api/game/cancel-trade",
+      {
+        method: "POST",
+        token: staff.token,
+        body: { tradeId: staffData.teams[0].trades[0].id },
+      },
+    );
     assert.equal(duplicateCancel.status, 409);
 
-    const canceledTeamSnapshot = await api(running.baseUrl, "/api/game", { token: team.token });
+    const canceledTeamSnapshot = await api(running.baseUrl, "/api/game", {
+      token: team.token,
+    });
     const canceledTeamData = await canceledTeamSnapshot.json();
     assert.equal(canceledTeamData.team.cash, 1000);
     assert.equal(canceledTeamData.team.holdings.IMMU, undefined);
     assert.equal(canceledTeamData.team.trades.length, 0);
 
-    const canceledStaffSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const canceledStaffSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const canceledStaffData = await canceledStaffSnapshot.json();
     assert.equal(canceledStaffData.teams[0].cash, 1000);
     assert.equal(canceledStaffData.teams[0].holdings.IMMU, undefined);
     assert.ok(canceledStaffData.teams[0].trades[0].canceled_at);
-    assert.equal(canceledStaffData.auditLogs.filter((log) => log.action === "trade_cancel").length, 2);
-    assert.ok(canceledStaffData.auditLogs.some((log) => log.action === "round_advance"));
+    assert.equal(
+      canceledStaffData.auditLogs.filter((log) => log.action === "trade_cancel")
+        .length,
+      2,
+    );
+    assert.ok(
+      canceledStaffData.auditLogs.some((log) => log.action === "round_advance"),
+    );
 
     await stopServer(running.child);
     running = await startServer(port, dataDir);
 
-    const persisted = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const persisted = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const persistedData = await persisted.json();
     assert.equal(persistedData.game.round, 1);
     assert.equal(persistedData.teams[0].holdings.IMMU, undefined);
     assert.equal(persistedData.teams[0].cash, 1000);
     assert.ok(persistedData.teams[0].trades[0].canceled_at);
-    assert.ok(persistedData.auditLogs.some((log) => log.action === "trade_cancel"));
+    assert.ok(
+      persistedData.auditLogs.some((log) => log.action === "trade_cancel"),
+    );
 
-    const deniedReset = await api(running.baseUrl, "/api/game/reset", { method: "POST", token: team.token });
+    const deniedReset = await api(running.baseUrl, "/api/game/reset", {
+      method: "POST",
+      token: team.token,
+    });
     assert.equal(deniedReset.status, 403);
 
-    const reset = await api(running.baseUrl, "/api/game/reset", { method: "POST", token: staff.token });
+    const reset = await api(running.baseUrl, "/api/game/reset", {
+      method: "POST",
+      token: staff.token,
+    });
     assert.deepEqual(await reset.json(), { ok: true });
 
-    const resetSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const resetSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const resetData = await resetSnapshot.json();
     assert.equal(resetData.game.started, false);
     assert.equal(resetData.game.round, 0);
@@ -382,7 +501,9 @@ test("shares staff, view, and team state through the public game server and keep
 
     await stopServer(running.child);
     running = await startServer(port, dataDir);
-    const persistedReset = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const persistedReset = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
     const persistedResetData = await persistedReset.json();
     assert.equal(persistedResetData.game.started, false);
     assert.equal(persistedResetData.teams.length, 5);

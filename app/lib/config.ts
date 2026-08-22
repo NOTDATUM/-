@@ -9,7 +9,11 @@ type GameRuntimeEnv = {
 
 export function getRuntimeSecrets() {
   const runtime = env as unknown as GameRuntimeEnv;
-  if (!runtime.TEAM_PASSWORD || !runtime.STAFF_PASSWORD || !runtime.SESSION_SIGNING_KEY) {
+  if (
+    !runtime.TEAM_PASSWORD ||
+    !runtime.STAFF_PASSWORD ||
+    !runtime.SESSION_SIGNING_KEY
+  ) {
     throw new Error("게임 로그인 설정이 연결되지 않았습니다.");
   }
   return {

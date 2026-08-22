@@ -3,10 +3,15 @@ import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 async function builtSources() {
-  const server = await readFile(new URL("../dist/server/index.js", import.meta.url), "utf8");
+  const server = await readFile(
+    new URL("../dist/server/index.js", import.meta.url),
+    "utf8",
+  );
   const ssrDir = new URL("../dist/server/ssr/assets/", import.meta.url);
   const files = await readdir(ssrDir);
-  const pageFile = files.find((file) => file.startsWith("page-") && file.endsWith(".js"));
+  const pageFile = files.find(
+    (file) => file.startsWith("page-") && file.endsWith(".js"),
+  );
   assert.ok(pageFile, "the built page bundle should exist");
   const page = await readFile(new URL(pageFile, ssrDir), "utf8");
   return { page, server };

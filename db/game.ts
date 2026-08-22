@@ -48,7 +48,9 @@ export async function ensureGameSchema() {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       canceled_at TEXT
     )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS trades_team_id_idx ON trades (team_id, id DESC)"),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS trades_team_id_idx ON trades (team_id, id DESC)",
+    ),
     db.prepare(`CREATE TABLE IF NOT EXISTS admin_audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       actor TEXT NOT NULL DEFAULT 'staff',
@@ -57,35 +59,67 @@ export async function ensureGameSchema() {
       details TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
-    db.prepare("CREATE INDEX IF NOT EXISTS admin_audit_logs_created_idx ON admin_audit_logs (id DESC)"),
+    db.prepare(
+      "CREATE INDEX IF NOT EXISTS admin_audit_logs_created_idx ON admin_audit_logs (id DESC)",
+    ),
   ]);
 
-  const tradeColumns = await db.prepare("PRAGMA table_info(trades)").all<{ name: string }>();
+  const tradeColumns = await db
+    .prepare("PRAGMA table_info(trades)")
+    .all<{ name: string }>();
   if (!tradeColumns.results.some((column) => column.name === "canceled_at")) {
     await db.prepare("ALTER TABLE trades ADD COLUMN canceled_at TEXT").run();
   }
 
-  await db.prepare("INSERT OR IGNORE INTO game_state (id, round, started) VALUES (1, 0, 0)").run();
-  const existing = await db.prepare("SELECT COUNT(*) AS count FROM teams").first<{ count: number }>();
+  await db
+    .prepare(
+      "INSERT OR IGNORE INTO game_state (id, round, started) VALUES (1, 0, 0)",
+    )
+    .run();
+  const existing = await db
+    .prepare("SELECT COUNT(*) AS count FROM teams")
+    .first<{ count: number }>();
   if (!existing?.count) {
     const seeds = [];
     for (let team = 1; team <= 12; team += 1) {
-      seeds.push(db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)").bind(team));
+      seeds.push(
+        db
+          .prepare(
+            "INSERT INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)",
+          )
+          .bind(team),
+      );
     }
     await db.batch(seeds);
   }
-  const teamRows = await db.prepare("SELECT team_id FROM teams").all<{ team_id: number }>();
+  const teamRows = await db
+    .prepare("SELECT team_id FROM teams")
+    .all<{ team_id: number }>();
   if (teamRows.results.length) {
-    await db.batch(teamRows.results.map((team) => db.prepare(
-      "INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)",
-    ).bind(team.team_id)));
+    await db.batch(
+      teamRows.results.map((team) =>
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)",
+          )
+          .bind(team.team_id),
+      ),
+    );
   }
-  const priceCount = await db.prepare("SELECT COUNT(*) AS count FROM price_schedule").first<{ count: number }>();
+  const priceCount = await db
+    .prepare("SELECT COUNT(*) AS count FROM price_schedule")
+    .first<{ count: number }>();
   if (!priceCount?.count) {
     const prices = [];
     for (const stock of gameData.stocks) {
       stock.prices.forEach((price, round) => {
-        prices.push(db.prepare("INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)").bind(stock.ticker, round, price));
+        prices.push(
+          db
+            .prepare(
+              "INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)",
+            )
+            .bind(stock.ticker, round, price),
+        );
       });
     }
     await db.batch(prices);

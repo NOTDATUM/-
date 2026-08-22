@@ -13,10 +13,16 @@ function getApiBase() {
 }
 
 function missingServerResponse() {
-  return new Response(JSON.stringify({ error: "공용 게임 서버 주소가 설정되지 않았습니다." }), {
-    status: 503,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-  });
+  return new Response(
+    JSON.stringify({ error: "공용 게임 서버 주소가 설정되지 않았습니다." }),
+    {
+      status: 503,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    },
+  );
 }
 
 export function setApiSessionToken(token: string) {
@@ -29,7 +35,11 @@ export function clearApiSessionToken() {
 
 export function apiFetch(path: string, init: RequestInit = {}) {
   const base = getApiBase();
-  if (typeof window !== "undefined" && window.__BE_STATIC_MODE__ === false && !base) {
+  if (
+    typeof window !== "undefined" &&
+    window.__BE_STATIC_MODE__ === false &&
+    !base
+  ) {
     return Promise.resolve(missingServerResponse());
   }
 
