@@ -1,5 +1,6 @@
 import { ensureGameSchema, getGameDb } from "../../../../db/game";
 import { readSession } from "../../../lib/session";
+import { adminAuditStatement } from "../../../lib/admin-audit";
 import gameData from "../../../../shared/game-data.json";
 
 const DEFAULT_SEED_MONEY = 1000;
@@ -21,6 +22,7 @@ export async function POST() {
       statements.push(db.prepare("INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)").bind(stock.ticker, round, price));
     });
   }
+  statements.push(adminAuditStatement("game_reset", "게임 상태와 주가 시나리오를 초기화했습니다."));
   await db.batch(statements);
   return Response.json({ ok: true });
 }

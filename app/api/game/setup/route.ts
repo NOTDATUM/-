@@ -1,4 +1,5 @@
 import { ensureGameSchema, getGameDb } from "../../../../db/game";
+import { adminAuditStatement } from "../../../lib/admin-audit";
 import { readSession } from "../../../lib/session";
 
 export async function POST(request: Request) {
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     statements.push(db.prepare("INSERT INTO teams (team_id, seed_money, cash) VALUES (?, ?, ?)").bind(index + 1, seed, seed));
     statements.push(db.prepare("INSERT OR IGNORE INTO team_sessions (team_id, session_version, last_seen_at) VALUES (?, 0, NULL)").bind(index + 1));
   });
+  statements.push(adminAuditStatement("game_setup", `${seeds.length}개 조 게임 구성을 저장했습니다.`, { teamCount: seeds.length, seeds }));
   await db.batch(statements);
   return Response.json({ ok: true });
 }

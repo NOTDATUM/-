@@ -80,11 +80,26 @@ db.exec(`
     price INTEGER NOT NULL,
     round INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    canceled_at TEXT,
     FOREIGN KEY (team_id) REFERENCES teams(team_id)
   ) STRICT;
   CREATE INDEX IF NOT EXISTS trades_team_id_idx ON trades (team_id, id DESC);
+  CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor TEXT NOT NULL DEFAULT 'staff',
+    action TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) STRICT;
+  CREATE INDEX IF NOT EXISTS admin_audit_logs_created_idx ON admin_audit_logs (id DESC);
   INSERT OR IGNORE INTO game_state (id, round, started) VALUES (1, 0, 0);
 `);
+
+const tradeColumns = db.prepare("PRAGMA table_info(trades)").all();
+if (!tradeColumns.some((column) => column.name === "canceled_at")) {
+  db.exec("ALTER TABLE trades ADD COLUMN canceled_at TEXT");
+}
 
 const insertInitialTeam = db.prepare("INSERT OR IGNORE INTO teams (team_id, seed_money, cash) VALUES (?, 1000, 1000)");
 const configuredTeamCount = db.prepare("SELECT COUNT(*) AS count FROM teams").get().count;
@@ -113,6 +128,16 @@ function safeEqualText(left, right) {
   const leftBuffer = Buffer.from(left);
   const rightBuffer = Buffer.from(right);
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function recordAdminAction(action, summary, details = null) {
+  db.prepare("INSERT INTO admin_audit_logs (actor, action, summary, details) VALUES ('staff', ?, ?, ?)")
+    .run(action, summary, details === null ? null : JSON.stringify(details));
+}
+
+function parseAuditDetails(details) {
+  if (!details) return null;
+  try { return JSON.parse(details); } catch { return null; }
 }
 
 function createSessionToken(session) {
@@ -229,7 +254,10 @@ function gameSnapshot(session) {
     ?? { round: 0, started: 0, updated_at: "" };
   const teams = db.prepare("SELECT team_id, seed_money, cash FROM teams ORDER BY team_id").all();
   const holdings = db.prepare("SELECT team_id, ticker, shares FROM holdings WHERE shares > 0 ORDER BY team_id, ticker").all();
-  const trades = db.prepare("SELECT id, team_id, ticker, action, quantity, price, round, created_at FROM trades ORDER BY id DESC LIMIT 500").all();
+  const trades = db.prepare("SELECT id, team_id, ticker, action, quantity, price, round, created_at, canceled_at FROM trades ORDER BY id DESC LIMIT 500").all();
+  const auditRows = session.role === "staff"
+    ? db.prepare("SELECT id, actor, action, summary, details, created_at FROM admin_audit_logs ORDER BY id DESC LIMIT 100").all()
+    : [];
   const priceRows = db.prepare("SELECT ticker, round, price FROM price_schedule ORDER BY ticker, round").all();
   const presenceRows = db.prepare(`SELECT team_id, last_seen_at,
     CASE WHEN last_seen_at IS NOT NULL AND last_seen_at >= datetime('now', '-12 seconds') THEN 1 ELSE 0 END AS online
@@ -250,7 +278,7 @@ function gameSnapshot(session) {
       cash: team.cash,
       totalAsset: team.cash + stockValue,
       holdings: Object.fromEntries(teamHoldings.map((holding) => [holding.ticker, holding.shares])),
-      trades: trades.filter((trade) => trade.team_id === team.team_id),
+      trades: trades.filter((trade) => trade.team_id === team.team_id && (session.role === "staff" || trade.canceled_at === null)),
       online: Boolean(presenceRows.find((presence) => presence.team_id === team.team_id)?.online),
       lastSeenAt: presenceRows.find((presence) => presence.team_id === team.team_id)?.last_seen_at ?? null,
     };
@@ -270,8 +298,19 @@ function gameSnapshot(session) {
     teams: session.role === "staff"
       ? teamViews
       : session.role === "view"
-        ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({ teamId, seedMoney, totalAsset }))
+        ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({
+          teamId,
+          returnRate: seedMoney ? Math.round((((totalAsset - seedMoney) / seedMoney) * 100) * 100) / 100 : 0,
+        }))
         : null,
+    auditLogs: session.role === "staff" ? auditRows.map((log) => ({
+      id: log.id,
+      actor: log.actor,
+      action: log.action,
+      summary: log.summary,
+      details: parseAuditDetails(log.details),
+      createdAt: log.created_at,
+    })) : null,
   };
 }
 
@@ -292,15 +331,19 @@ function setupGame(seeds) {
       insertTeamSession.run(index + 1);
     });
     db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
+    recordAdminAction("game_setup", `${seeds.length}개 조 게임 구성을 저장했습니다.`, { teamCount: seeds.length, seeds });
   });
 }
 
-function forceLogoutTeam(teamId) {
+function forceLogoutTeam(teamId, { audit = true } = {}) {
   if (!Number.isInteger(teamId) || teamId < 1 || teamId > maxTeamCount
     || !db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").get(teamId)) {
     throw new HttpError(400, "로그아웃할 조를 다시 확인해 주세요.");
   }
-  db.prepare("UPDATE team_sessions SET session_version = session_version + 1, last_seen_at = NULL WHERE team_id = ?").run(teamId);
+  transaction(() => {
+    db.prepare("UPDATE team_sessions SET session_version = session_version + 1, last_seen_at = NULL WHERE team_id = ?").run(teamId);
+    if (audit) recordAdminAction("force_logout", `${teamId}조를 강제 로그아웃했습니다.`, { teamId });
+  });
 }
 
 function startGame() {
@@ -309,6 +352,7 @@ function startGame() {
     if (!game) throw new HttpError(500, "게임 상태를 불러오지 못했습니다.");
     if (game.started) throw new HttpError(409, "이미 게임이 시작되었습니다.");
     db.prepare("UPDATE game_state SET round = 0, started = 1, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    recordAdminAction("game_start", "게임을 시작했습니다.", { round: 0 });
     return { round: 0, started: true };
   });
 }
@@ -324,6 +368,7 @@ function resetGame() {
     for (const stock of stocks) {
       stock.prices.forEach((price, round) => insertPrice.run(stock.ticker, round, price));
     }
+    recordAdminAction("game_reset", "게임 상태와 주가 시나리오를 초기화했습니다.");
   });
 }
 
@@ -349,6 +394,7 @@ function updateFuturePrices(updates) {
     const updatePrice = db.prepare("UPDATE price_schedule SET price = ? WHERE ticker = ? AND round = ?");
     normalized.forEach((item) => updatePrice.run(item.price, item.ticker, item.round));
     db.prepare("UPDATE game_state SET updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    recordAdminAction("price_update", `미공개 주가 ${normalized.length}개를 수정했습니다.`, { updates: normalized });
     return normalized.length;
   });
 }
@@ -360,6 +406,7 @@ function advanceRound() {
     if (game.round >= lastRound) throw new HttpError(400, "모든 라운드가 종료되었습니다.");
     const nextRound = game.round + 1;
     db.prepare("UPDATE game_state SET round = ?, updated_at = CURRENT_TIMESTAMP WHERE id = 1").run(nextRound);
+    recordAdminAction("round_advance", `${nextRound}라운드를 공개했습니다.`, { previousRound: game.round, round: nextRound });
     return nextRound;
   });
 }
@@ -397,6 +444,44 @@ function executeTrade(teamId, body) {
       .run(teamId, ticker, action, quantity, price, game.round);
     db.prepare("UPDATE game_state SET updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
     return { price, quantity, action };
+  });
+}
+
+function cancelTrade(tradeId) {
+  if (!Number.isInteger(tradeId) || tradeId < 1) throw new HttpError(400, "취소할 거래를 다시 확인해 주세요.");
+  return transaction(() => {
+    const trade = db.prepare(`SELECT id, team_id, ticker, action, quantity, price, round, canceled_at
+      FROM trades WHERE id = ?`).get(tradeId);
+    if (!trade) throw new HttpError(404, "거래 내역을 찾을 수 없습니다.");
+    if (trade.canceled_at) throw new HttpError(409, "이미 취소된 거래입니다.");
+    const team = db.prepare("SELECT cash FROM teams WHERE team_id = ?").get(trade.team_id);
+    const holding = db.prepare("SELECT shares FROM holdings WHERE team_id = ? AND ticker = ?").get(trade.team_id, trade.ticker);
+    if (!team) throw new HttpError(404, "거래 조를 찾을 수 없습니다.");
+    const shares = holding?.shares ?? 0;
+    const total = trade.quantity * trade.price;
+    if (trade.action === "buy" && shares < trade.quantity) {
+      throw new HttpError(409, "이후 매도로 보유 수량이 부족해 해당 매수를 취소할 수 없습니다.");
+    }
+    if (trade.action === "sell" && team.cash < total) {
+      throw new HttpError(409, "이후 거래로 현금이 부족해 해당 매도를 취소할 수 없습니다.");
+    }
+    const nextCash = team.cash + (trade.action === "buy" ? total : -total);
+    const nextShares = shares + (trade.action === "buy" ? -trade.quantity : trade.quantity);
+    db.prepare("UPDATE teams SET cash = ? WHERE team_id = ?").run(nextCash, trade.team_id);
+    db.prepare(`INSERT INTO holdings (team_id, ticker, shares) VALUES (?, ?, ?)
+      ON CONFLICT(team_id, ticker) DO UPDATE SET shares = excluded.shares`).run(trade.team_id, trade.ticker, nextShares);
+    db.prepare("UPDATE trades SET canceled_at = CURRENT_TIMESTAMP WHERE id = ?").run(trade.id);
+    db.prepare("UPDATE game_state SET updated_at = CURRENT_TIMESTAMP WHERE id = 1").run();
+    recordAdminAction("trade_cancel", `${trade.team_id}조 ${trade.ticker} ${trade.action === "buy" ? "매수" : "매도"} 거래를 취소했습니다.`, {
+      tradeId: trade.id,
+      teamId: trade.team_id,
+      ticker: trade.ticker,
+      action: trade.action,
+      quantity: trade.quantity,
+      price: trade.price,
+      round: trade.round,
+    });
+    return { tradeId: trade.id, teamId: trade.team_id };
   });
 }
 
@@ -440,7 +525,7 @@ const server = createServer(async (request, response) => {
 
     if (pathname === "/api/auth" && request.method === "DELETE") {
       const logoutSession = readSession(request, { touch: false });
-      if (logoutSession?.role === "team") forceLogoutTeam(logoutSession.teamId);
+      if (logoutSession?.role === "team") forceLogoutTeam(logoutSession.teamId, { audit: false });
       sendJson(response, 200, { ok: true }, origin);
       return;
     }
@@ -491,6 +576,12 @@ const server = createServer(async (request, response) => {
     if (pathname === "/api/game/round" && request.method === "POST") {
       if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
       sendJson(response, 200, { round: advanceRound() }, origin);
+      return;
+    }
+    if (pathname === "/api/game/cancel-trade" && request.method === "POST") {
+      if (session.role !== "staff") throw new HttpError(403, "스태프 권한이 필요합니다.");
+      const result = cancelTrade(Number((await readJson(request)).tradeId));
+      sendJson(response, 200, { ok: true, ...result }, origin);
       return;
     }
     if (pathname === "/api/game/trade" && request.method === "POST") {

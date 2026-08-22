@@ -5,15 +5,25 @@ import { LAST_ROUND, getStockPrice, isStockTradable, rounds, stocks, type PriceS
 import { apiFetch, clearApiSessionToken, setApiSessionToken } from "./api-client";
 
 type Session = { role: "staff" | "view"; teamId: null } | { role: "team"; teamId: number };
-type Trade = { id: number; team_id: number; ticker: string; action: "buy" | "sell"; quantity: number; price: number; round: number; created_at: string };
+type Trade = { id: number; team_id: number; ticker: string; action: "buy" | "sell"; quantity: number; price: number; round: number; created_at: string; canceled_at?: string | null };
 type TeamView = { teamId: number; seedMoney: number; cash: number; totalAsset: number; holdings: Record<string, number>; trades: Trade[]; online?: boolean; lastSeenAt?: string | null };
-type Snapshot = { session: Session; game: { round: number; started: boolean; updatedAt: string }; market: { prices: PriceSchedule }; team: TeamView | null; teams: TeamView[] | null };
+type ViewTeamPerformance = { teamId: number; returnRate: number };
+type AdminAuditLog = { id: number; actor: string; action: string; summary: string; details: unknown; createdAt: string };
+type Snapshot = { session: Session; game: { round: number; started: boolean; updatedAt: string }; market: { prices: PriceSchedule }; team: TeamView | null; teams: Array<TeamView | ViewTeamPerformance> | null; auditLogs?: AdminAuditLog[] | null };
 
 const money = new Intl.NumberFormat("ko-KR");
 const MAX_ORDER_QUANTITY = 1_000_000;
 const DEFAULT_TEAM_COUNT = 12;
 const MAX_TEAM_COUNT = 30;
 const CLIENT_THEME_KEY = "be-client-theme";
+
+function isTeamView(team: TeamView | ViewTeamPerformance): team is TeamView {
+  return "cash" in team;
+}
+
+function isViewTeamPerformance(team: TeamView | ViewTeamPerformance): team is ViewTeamPerformance {
+  return "returnRate" in team;
+}
 
 const viewRoundBriefs = [
   { tags: ["기업 정보", "분산 투자", "초기 포트폴리오"], note: "사업 구조와 위험 요인을 비교해 첫 포트폴리오의 균형을 점검하세요." },
@@ -116,7 +126,7 @@ function getAllStocksViewport(round: number, selectedTicker: string | null, pric
   };
 }
 
-function AllStocksChart({ round, prices, compact = false, selectedTicker = null, tone = "dark" }: { round: number; prices: PriceSchedule; compact?: boolean; selectedTicker?: string | null; tone?: "light" | "dark" }) {
+function AllStocksChart({ round, prices, compact = false, selectedTicker = null, tone = "dark" }: { round: number; prices: PriceSchedule; compact?: boolean; selectedTicker?: string | null; tone?: "light" | "dark" | "projector" }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<ChartViewport | null>(null);
   const previousRoundRef = useRef<number | null>(null);
@@ -127,38 +137,40 @@ function AllStocksChart({ round, prices, compact = false, selectedTicker = null,
     const prepared = prepareCanvas(canvas);
     if (!prepared) return;
     const { context, width, height } = prepared;
-    const pad = compact ? { top: 12, right: 10, bottom: 22, left: 10 } : { top: 31, right: 26, bottom: 46, left: 72 };
+    const projector = tone === "projector";
+    const pad = compact ? { top: 12, right: 10, bottom: 22, left: 10 } : projector ? { top: 37, right: 32, bottom: 58, left: 88 } : { top: 31, right: 26, bottom: 46, left: 72 };
     const plotWidth = width - pad.left - pad.right;
     const plotHeight = height - pad.top - pad.bottom;
     const x = (index: number) => pad.left + (index / viewport.xMax) * plotWidth;
     const y = (indexValue: number) => pad.top + ((viewport.max - indexValue) / (viewport.max - viewport.min)) * plotHeight;
 
     if (!compact) {
-      context.font = "650 12px Arial";
-      context.fillStyle = tone === "light" ? "#6b7684" : "rgba(211,222,240,.55)";
+      context.font = projector ? "750 15px Arial" : "650 12px Arial";
+      context.fillStyle = tone === "light" ? "#6b7684" : projector ? "rgba(255,255,255,.92)" : "rgba(211,222,240,.55)";
       context.textAlign = "left";
       context.fillText("주가 (BE)", pad.left, 13);
       for (let grid = 0; grid <= 5; grid += 1) {
         const value = viewport.max - (grid / 5) * (viewport.max - viewport.min);
         const py = y(value);
-        context.strokeStyle = tone === "light" ? "rgba(25,31,40,.09)" : "rgba(255,255,255,.07)";
-        context.lineWidth = 1;
+        context.strokeStyle = tone === "light" ? "rgba(25,31,40,.09)" : projector ? "rgba(255,255,255,.2)" : "rgba(255,255,255,.07)";
+        context.lineWidth = projector ? 1.4 : 1;
         context.beginPath();
         context.moveTo(pad.left, py);
         context.lineTo(width - pad.right, py);
         context.stroke();
-        context.fillStyle = tone === "light" ? "#8b95a1" : "rgba(211,222,240,.5)";
+        context.fillStyle = tone === "light" ? "#8b95a1" : projector ? "rgba(255,255,255,.88)" : "rgba(211,222,240,.5)";
         context.textAlign = "right";
         context.fillText(money.format(Math.round(value)), pad.left - 11, py + 4);
       }
-      context.strokeStyle = tone === "light" ? "rgba(25,31,40,.16)" : "rgba(255,255,255,.12)";
+      context.strokeStyle = tone === "light" ? "rgba(25,31,40,.16)" : projector ? "rgba(255,255,255,.42)" : "rgba(255,255,255,.12)";
+      context.lineWidth = projector ? 1.8 : 1;
       context.beginPath();
       context.moveTo(pad.left, pad.top);
       context.lineTo(pad.left, height - pad.bottom);
       context.lineTo(width - pad.right, height - pad.bottom);
       context.stroke();
       for (let index = 0; index <= Math.floor(viewport.xMax + .001); index += 1) {
-        context.fillStyle = index <= round ? (tone === "light" ? "#6b7684" : "rgba(225,233,246,.7)") : (tone === "light" ? "#d1d6db" : "rgba(225,233,246,.2)");
+        context.fillStyle = index <= round ? (tone === "light" ? "#6b7684" : projector ? "rgba(255,255,255,.94)" : "rgba(225,233,246,.7)") : (tone === "light" ? "#d1d6db" : projector ? "rgba(255,255,255,.28)" : "rgba(225,233,246,.2)");
         context.textAlign = "center";
         context.fillText(index === 0 ? "기준가" : `${index}라운드`, x(index), height - 13);
       }
@@ -186,7 +198,7 @@ function AllStocksChart({ round, prices, compact = false, selectedTicker = null,
         else context.lineTo(px, py);
       });
       context.strokeStyle = stock.color;
-      context.lineWidth = compact ? 1.4 : 2.2;
+      context.lineWidth = compact ? 1.4 : projector ? 3.6 : 2.2;
       context.lineJoin = "round";
       context.lineCap = "round";
       context.globalAlpha = (compact ? .8 : .92) * (entering ? Math.max(.15, reveal) : 1);
@@ -609,10 +621,11 @@ function TeamDashboard({ snapshot, refresh, onLogout }: { snapshot: Snapshot; re
   </main>;
 }
 
-function StaffTeamDetail({ team, round, prices, onBack }: { team: TeamView; round: number; prices: PriceSchedule; onBack: () => void }) {
+function StaffTeamDetail({ team, round, prices, onBack, onCancelTrade, cancelTradeBusy }: { team: TeamView; round: number; prices: PriceSchedule; onBack: () => void; onCancelTrade: (trade: Trade) => void | Promise<void>; cancelTradeBusy: number | null }) {
   const stockValue = team.totalAsset - team.cash;
   const pnl = team.totalAsset - team.seedMoney;
-  return <section className="staff-detail-page"><button className="back-button" onClick={onBack}>← 전체 진행 화면</button><div className="detail-heading"><div><span className="eyebrow">TEAM {team.teamId} ACTIVITY</span><h1>{team.teamId}조 거래 현황</h1><p>보유 주식과 라운드별 매수·매도 내역을 확인합니다.</p></div><div className="detail-total"><span>현재 총 자산</span><strong>{money.format(team.totalAsset)} <em>BE</em></strong><small className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)} BE</small></div></div><div className="detail-metrics"><div><span>시드머니</span><strong>{money.format(team.seedMoney)} BE</strong></div><div><span>보유 현금</span><strong>{money.format(team.cash)} BE</strong></div><div><span>주식 평가액</span><strong>{money.format(stockValue)} BE</strong></div><div><span>현재 라운드</span><strong>{round === 0 ? "장 시작" : `${round}R`}</strong></div></div><div className="detail-grid"><section className="panel table-panel"><div className="panel-title"><div><span className="eyebrow">POSITIONS</span><h2>보유 주식</h2></div></div><div className="data-table"><table><thead><tr><th>종목</th><th>보유 수량</th><th>현재가</th><th>평가액</th></tr></thead><tbody>{stocks.map((stock) => { const shares = team.holdings[stock.ticker] ?? 0; const price = getStockPrice(stock.ticker, round, prices); return shares > 0 ? <tr key={stock.ticker}><td><i style={{ background: stock.color }} /><strong>{stock.name}</strong><small>{stock.ticker}</small></td><td>{shares}주</td><td>{price === null ? "—" : `${money.format(price)} BE`}</td><td>{price === null ? "—" : `${money.format(price * shares)} BE`}</td></tr> : null; })}{Object.values(team.holdings).every((shares) => shares <= 0) && <tr><td colSpan={4} className="empty-cell">보유 주식이 없습니다.</td></tr>}</tbody></table></div></section><section className="panel table-panel trade-history"><div className="panel-title"><div><span className="eyebrow">ORDER HISTORY</span><h2>전체 매수·매도 내역</h2></div><span>{team.trades.length}건</span></div><div className="data-table"><table><thead><tr><th>라운드</th><th>구분</th><th>종목</th><th>수량</th><th>체결가</th><th>금액</th></tr></thead><tbody>{team.trades.map((trade) => { const stock = stocks.find((item) => item.ticker === trade.ticker)!; return <tr key={trade.id}><td>{trade.round === 0 ? "OPEN" : `${trade.round}R`}</td><td><span className={`trade-pill ${trade.action}`}>{trade.action === "buy" ? "매수" : "매도"}</span></td><td><strong>{stock.name}</strong><small>{stock.ticker}</small></td><td>{trade.quantity}주</td><td>{money.format(trade.price)} BE</td><td className={trade.action === "buy" ? "down" : "up"}>{trade.action === "buy" ? "−" : "+"}{money.format(trade.quantity * trade.price)} BE</td></tr>; })}{team.trades.length === 0 && <tr><td colSpan={6} className="empty-cell">아직 거래 내역이 없습니다.</td></tr>}</tbody></table></div></section></div></section>;
+  const canceledCount = team.trades.filter((trade) => trade.canceled_at).length;
+  return <section className="staff-detail-page"><button className="back-button" onClick={onBack}>← 운영 관리 콘솔</button><div className="detail-heading"><div><span className="eyebrow">TEAM {team.teamId} ACTIVITY</span><h1>{team.teamId}조 거래 현황</h1><p>보유 주식과 라운드별 매수·매도 내역을 확인하고 잘못된 체결을 취소할 수 있습니다.</p></div><div className="detail-total"><span>현재 총 자산</span><strong>{money.format(team.totalAsset)} <em>BE</em></strong><small className={pnl >= 0 ? "up" : "down"}>{pnl >= 0 ? "+" : ""}{money.format(pnl)} BE</small></div></div><div className="detail-metrics"><div><span>시드머니</span><strong>{money.format(team.seedMoney)} BE</strong></div><div><span>보유 현금</span><strong>{money.format(team.cash)} BE</strong></div><div><span>주식 평가액</span><strong>{money.format(stockValue)} BE</strong></div><div><span>현재 라운드</span><strong>{round === 0 ? "장 시작" : `${round}R`}</strong></div></div><div className="detail-grid"><section className="panel table-panel"><div className="panel-title"><div><span className="eyebrow">POSITIONS</span><h2>보유 주식</h2></div></div><div className="data-table"><table><thead><tr><th>종목</th><th>보유 수량</th><th>현재가</th><th>평가액</th></tr></thead><tbody>{stocks.map((stock) => { const shares = team.holdings[stock.ticker] ?? 0; const price = getStockPrice(stock.ticker, round, prices); return shares > 0 ? <tr key={stock.ticker}><td><i style={{ background: stock.color }} /><strong>{stock.name}</strong><small>{stock.ticker}</small></td><td>{shares}주</td><td>{price === null ? "—" : `${money.format(price)} BE`}</td><td>{price === null ? "—" : `${money.format(price * shares)} BE`}</td></tr> : null; })}{Object.values(team.holdings).every((shares) => shares <= 0) && <tr><td colSpan={4} className="empty-cell">보유 주식이 없습니다.</td></tr>}</tbody></table></div></section><section className="panel table-panel trade-history"><div className="panel-title"><div><span className="eyebrow">ORDER HISTORY</span><h2>전체 매수·매도 내역</h2></div><span>{team.trades.length - canceledCount}건 유효{canceledCount ? ` · ${canceledCount}건 취소` : ""}</span></div><div className="data-table"><table><thead><tr><th>라운드</th><th>구분</th><th>종목</th><th>수량</th><th>체결가</th><th>금액</th><th>관리</th></tr></thead><tbody>{team.trades.map((trade) => { const stock = stocks.find((item) => item.ticker === trade.ticker)!; const canceled = Boolean(trade.canceled_at); const canCancel = !canceled && (trade.action === "buy" ? (team.holdings[trade.ticker] ?? 0) >= trade.quantity : team.cash >= trade.quantity * trade.price); return <tr className={canceled ? "canceled-trade-row" : ""} key={trade.id}><td>{trade.round === 0 ? "OPEN" : `${trade.round}R`}</td><td>{canceled ? <span className="trade-pill canceled">취소됨</span> : <span className={`trade-pill ${trade.action}`}>{trade.action === "buy" ? "매수" : "매도"}</span>}</td><td><strong>{stock.name}</strong><small>{stock.ticker}</small></td><td>{trade.quantity}주</td><td>{money.format(trade.price)} BE</td><td className={canceled ? "neutral" : trade.action === "buy" ? "down" : "up"}>{trade.action === "buy" ? "−" : "+"}{money.format(trade.quantity * trade.price)} BE</td><td><button className="trade-cancel-button" disabled={!canCancel || cancelTradeBusy === trade.id} title={!canCancel && !canceled ? "현재 잔액 또는 보유 수량으로 되돌릴 수 없습니다." : undefined} onClick={() => onCancelTrade(trade)}>{canceled ? "취소 완료" : cancelTradeBusy === trade.id ? "처리 중" : canCancel ? "거래 취소" : "취소 불가"}</button></td></tr>; })}{team.trades.length === 0 && <tr><td colSpan={7} className="empty-cell">아직 거래 내역이 없습니다.</td></tr>}</tbody></table></div></section></div></section>;
 }
 
 function PriceScheduleEditor({ snapshot, refresh, onBack, onLogout }: { snapshot: Snapshot; refresh: () => Promise<void>; onBack: () => void; onLogout: () => void }) {
@@ -669,16 +682,17 @@ function PriceScheduleEditor({ snapshot, refresh, onBack, onLogout }: { snapshot
   </main>;
 }
 
-function StaffDashboard({ snapshot, refresh, onLogout, onOpenPriceBoard, onForceLogout, forceLogoutBusy }: { snapshot: Snapshot; refresh: () => Promise<void>; onLogout: () => void; onOpenPriceBoard: () => void; onForceLogout: (teamId: number) => void | Promise<void>; forceLogoutBusy: number | null }) {
-  const teams = useMemo(() => snapshot.teams ?? [], [snapshot.teams]);
+function StaffDashboard({ snapshot, refresh, onLogout, onOpenPriceBoard, onForceLogout, forceLogoutBusy, onCancelTrade, cancelTradeBusy }: { snapshot: Snapshot; refresh: () => Promise<void>; onLogout: () => void; onOpenPriceBoard: () => void; onForceLogout: (teamId: number) => void | Promise<void>; forceLogoutBusy: number | null; onCancelTrade: (trade: Trade) => void | Promise<void>; cancelTradeBusy: number | null }) {
+  const teams = useMemo(() => (snapshot.teams ?? []).filter(isTeamView), [snapshot.teams]);
+  const auditLogs = snapshot.auditLogs ?? [];
   const round = snapshot.game.round;
   const prices = snapshot.market.prices;
   const [detailTeam, setDetailTeam] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const onlineCount = teams.filter((team) => team.online).length;
-  const totalTrades = teams.reduce((sum, team) => sum + team.trades.length, 0);
+  const totalTrades = teams.reduce((sum, team) => sum + team.trades.filter((trade) => !trade.canceled_at).length, 0);
   const totalAssets = teams.reduce((sum, team) => sum + team.totalAsset, 0);
-  const recentActivity = useMemo(() => teams.flatMap((team) => team.trades.map((trade) => ({ ...trade, teamId: team.teamId }))).sort((left, right) => right.id - left.id).slice(0, 8), [teams]);
+  const recentActivity = useMemo(() => teams.flatMap((team) => team.trades.filter((trade) => !trade.canceled_at).map((trade) => ({ ...trade, teamId: team.teamId }))).sort((left, right) => right.id - left.id).slice(0, 8), [teams]);
   const nextEvent = round < LAST_ROUND ? rounds[round + 1] : null;
   const advance = async () => {
     if (!window.confirm(`${round + 1}라운드 주가를 공개할까요?`)) return;
@@ -700,17 +714,18 @@ function StaffDashboard({ snapshot, refresh, onLogout, onOpenPriceBoard, onForce
     finally { setBusy(false); }
   };
   const selected = detailTeam ? teams.find((team) => team.teamId === detailTeam) : null;
-  if (selected) return <main className="staff-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation onOpenPriceBoard={onOpenPriceBoard} /><StaffTeamDetail team={selected} round={round} prices={prices} onBack={() => setDetailTeam(null)} /></main>;
+  if (selected) return <main className="staff-shell"><Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation onOpenPriceBoard={onOpenPriceBoard} /><StaffTeamDetail team={selected} round={round} prices={prices} onBack={() => setDetailTeam(null)} onCancelTrade={onCancelTrade} cancelTradeBusy={cancelTradeBusy} /></main>;
   return <main className="staff-shell admin-shell">
     <Topbar session={snapshot.session} round={round} onLogout={onLogout} presentation onOpenPriceBoard={onOpenPriceBoard} />
     <section className="admin-console">
       <header className="admin-heading"><div><span className="eyebrow">GAME OPERATIONS</span><h1>운영 관리 콘솔</h1><p>게임 상태와 참가 조 접속·거래를 관리합니다. 발표용 정보는 view 화면에 분리되어 있습니다.</p></div><div className="admin-heading-actions"><button onClick={onOpenPriceBoard}>주가 시나리오 관리</button><button className="danger" disabled={busy} onClick={reset}>게임 초기화</button></div></header>
       <section className="admin-metric-grid"><article><span>진행 상태</span><strong>{round === 0 ? "장 시작" : `${round}라운드`}</strong><small>{round}/10 진행</small></article><article><span>참가 조 접속</span><strong>{onlineCount}<em> / {teams.length}</em></strong><small>{teams.length - onlineCount}개 조 오프라인</small></article><article><span>누적 체결</span><strong>{money.format(totalTrades)}<em>건</em></strong><small>전체 조 거래 합계</small></article><article><span>전체 총자산</span><strong>{money.format(totalAssets)}<em> BE</em></strong><small>실시간 평가 기준</small></article></section>
       <section className="admin-workspace">
-        <div className="panel admin-team-panel"><div className="admin-panel-heading"><div><span className="eyebrow">TEAM MANAGEMENT</span><h2>참가 조 관리</h2></div><span className="admin-live-count"><i />{onlineCount} online</span></div><div className="admin-team-table"><table><thead><tr><th>조</th><th>접속</th><th>총 자산</th><th>수익률</th><th>현금</th><th>거래</th><th>계정 작업</th></tr></thead><tbody>{teams.map((team) => { const returnRate = team.seedMoney ? ((team.totalAsset - team.seedMoney) / team.seedMoney) * 100 : 0; return <tr key={team.teamId}><td><button className="admin-team-link" onClick={() => setDetailTeam(team.teamId)}>{team.teamId}조</button></td><td><span className={`admin-presence ${team.online ? "online" : "offline"}`}><i />{team.online ? "온라인" : "오프라인"}</span></td><td><strong>{money.format(team.totalAsset)} BE</strong></td><td><span className={returnRate >= 0 ? "up" : "down"}>{returnRate >= 0 ? "+" : ""}{returnRate.toFixed(1)}%</span></td><td>{money.format(team.cash)} BE</td><td>{team.trades.length}건</td><td><div className="admin-row-actions"><button onClick={() => setDetailTeam(team.teamId)}>상세</button><button className="logout" disabled={forceLogoutBusy === team.teamId} onClick={() => onForceLogout(team.teamId)}>{forceLogoutBusy === team.teamId ? "처리 중" : "강제 로그아웃"}</button></div></td></tr>; })}</tbody></table></div></div>
+        <div className="panel admin-team-panel"><div className="admin-panel-heading"><div><span className="eyebrow">TEAM MANAGEMENT</span><h2>참가 조 관리</h2></div><span className="admin-live-count"><i />{onlineCount} online</span></div><div className="admin-team-table"><table><thead><tr><th>조</th><th>접속</th><th>총 자산</th><th>수익률</th><th>현금</th><th>거래</th><th>계정 작업</th></tr></thead><tbody>{teams.map((team) => { const returnRate = team.seedMoney ? ((team.totalAsset - team.seedMoney) / team.seedMoney) * 100 : 0; const activeTrades = team.trades.filter((trade) => !trade.canceled_at).length; return <tr key={team.teamId}><td><button className="admin-team-link" onClick={() => setDetailTeam(team.teamId)}>{team.teamId}조</button></td><td><span className={`admin-presence ${team.online ? "online" : "offline"}`}><i />{team.online ? "온라인" : "오프라인"}</span></td><td><strong>{money.format(team.totalAsset)} BE</strong></td><td><span className={returnRate >= 0 ? "up" : "down"}>{returnRate >= 0 ? "+" : ""}{returnRate.toFixed(1)}%</span></td><td>{money.format(team.cash)} BE</td><td>{activeTrades}건</td><td><div className="admin-row-actions"><button onClick={() => setDetailTeam(team.teamId)}>상세</button><button className="logout" disabled={forceLogoutBusy === team.teamId} onClick={() => onForceLogout(team.teamId)}>{forceLogoutBusy === team.teamId ? "처리 중" : "강제 로그아웃"}</button></div></td></tr>; })}</tbody></table></div></div>
         <aside className="admin-side-column">
           <section className="panel admin-round-panel"><div className="admin-panel-heading"><div><span className="eyebrow">ROUND CONTROL</span><h2>라운드 제어</h2></div><strong>R{round}</strong></div><div className="admin-current-event"><span>현재 공지</span><h3>{rounds[round].theme}</h3><p>{rounds[round].detail}</p></div>{nextEvent && <div className="admin-next-event"><span>다음 공개</span><strong>R{round + 1} · {nextEvent.theme}</strong></div>}<button className="admin-advance" disabled={busy || round >= LAST_ROUND} onClick={advance}>{round >= LAST_ROUND ? "모든 라운드 종료" : `R${round + 1} 공개 및 진행`}<span>→</span></button><RoundProgress round={round} /></section>
-          <section className="panel admin-activity-panel"><div className="admin-panel-heading"><div><span className="eyebrow">RECENT ACTIVITY</span><h2>최근 체결</h2></div><span>{recentActivity.length}건 표시</span></div><div className="admin-activity-list">{recentActivity.map((trade) => <article key={trade.id}><span className={trade.action}>{trade.action === "buy" ? "매수" : "매도"}</span><p><strong>{trade.teamId}조 · {trade.ticker}</strong><small>R{trade.round} · {trade.quantity}주 × {money.format(trade.price)} BE</small></p><em>{money.format(trade.quantity * trade.price)} BE</em></article>)}{recentActivity.length === 0 && <p className="admin-empty">아직 체결된 거래가 없습니다.</p>}</div></section>
+          <section className="panel admin-activity-panel"><div className="admin-panel-heading"><div><span className="eyebrow">RECENT ACTIVITY</span><h2>최근 체결 · 취소 관리</h2></div><span>{recentActivity.length}건 표시</span></div><div className="admin-activity-list">{recentActivity.map((trade) => { const team = teams.find((item) => item.teamId === trade.teamId); const canCancel = Boolean(team) && (trade.action === "buy" ? (team?.holdings[trade.ticker] ?? 0) >= trade.quantity : (team?.cash ?? 0) >= trade.quantity * trade.price); return <article key={trade.id}><span className={trade.action}>{trade.action === "buy" ? "매수" : "매도"}</span><p><strong>{trade.teamId}조 · {trade.ticker}</strong><small>R{trade.round} · {trade.quantity}주 × {money.format(trade.price)} BE</small></p><em>{money.format(trade.quantity * trade.price)} BE</em><button className="activity-cancel-button" disabled={!canCancel || cancelTradeBusy === trade.id} onClick={() => onCancelTrade(trade)}>{cancelTradeBusy === trade.id ? "처리 중" : canCancel ? "취소" : "불가"}</button></article>; })}{recentActivity.length === 0 && <p className="admin-empty">아직 체결된 거래가 없습니다.</p>}</div></section>
+          <section className="panel admin-audit-panel"><div className="admin-panel-heading"><div><span className="eyebrow">ADMIN AUDIT LOG</span><h2>운영 감사 로그</h2></div><span>최근 {auditLogs.length}건</span></div><div className="admin-audit-list">{auditLogs.map((log) => <article key={log.id}><i>{log.id}</i><p><strong>{log.summary}</strong><small>{log.actor} · {new Date(`${log.createdAt}Z`).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</small></p><span>{log.action.replaceAll("_", " ")}</span></article>)}{auditLogs.length === 0 && <p className="admin-empty">아직 기록된 관리자 조작이 없습니다.</p>}</div></section>
         </aside>
       </section>
     </section>
@@ -718,16 +733,19 @@ function StaffDashboard({ snapshot, refresh, onLogout, onOpenPriceBoard, onForce
 }
 
 function ViewDashboard({ snapshot, onLogout }: { snapshot: Snapshot; onLogout: () => void }) {
-  const teams = snapshot.teams ?? [];
+  const teams = useMemo(() => (snapshot.teams ?? []).filter(isViewTeamPerformance), [snapshot.teams]);
   const round = snapshot.game.round;
   const prices = snapshot.market.prices;
   const [fullscreen, setFullscreen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const update = () => setFullscreen(Boolean(document.fullscreenElement));
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMenuOpen(false); };
     document.addEventListener("fullscreenchange", update);
-    return () => document.removeEventListener("fullscreenchange", update);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("fullscreenchange", update); document.removeEventListener("keydown", closeOnEscape); };
   }, []);
-  const standings = useMemo(() => teams.map((team) => ({ ...team, returnRate: team.seedMoney ? ((team.totalAsset - team.seedMoney) / team.seedMoney) * 100 : 0 })).sort((left, right) => right.returnRate - left.returnRate), [teams]);
+  const standings = useMemo(() => [...teams].sort((left, right) => right.returnRate - left.returnRate), [teams]);
   const quotes = useMemo(() => stocks.map((stock) => { const price = getStockPrice(stock.ticker, round, prices); const previous = round > 0 ? getStockPrice(stock.ticker, round - 1, prices) : null; return { stock, price, change: price !== null && previous !== null && previous > 0 ? ((price - previous) / previous) * 100 : null }; }), [prices, round]);
   const brief = viewRoundBriefs[round];
   const maxReturn = Math.max(1, ...standings.map((team) => Math.abs(team.returnRate)));
@@ -736,11 +754,12 @@ function ViewDashboard({ snapshot, onLogout }: { snapshot: Snapshot; onLogout: (
     else await document.documentElement.requestFullscreen();
   };
   return <main className={`view-shell ${teams.length > 16 ? "dense" : ""}`}>
-    <header className="view-header"><Brand compact /><div className="view-market-status"><i className={!snapshot.game.started ? "ready" : round >= LAST_ROUND ? "closed" : ""} /><span>{!snapshot.game.started ? "GAME READY" : round >= LAST_ROUND ? "MARKET CLOSED" : "LIVE MARKET"}</span><strong>{snapshot.game.started ? rounds[round].label : "시작 대기"}</strong></div><div className="view-screen-actions"><button onClick={toggleFullscreen}>{fullscreen ? "전체화면 종료" : "전체화면"}</button><button onClick={onLogout}>로그아웃</button></div></header>
+    <button className={`view-menu-trigger ${menuOpen ? "active" : ""}`} aria-expanded={menuOpen} aria-controls="view-control-bar" onClick={() => setMenuOpen((open) => !open)}><span>☰</span> 화면 메뉴</button>
+    {menuOpen && <header className="view-control-bar" id="view-control-bar"><Brand compact /><div className="view-market-status"><i className={!snapshot.game.started ? "ready" : round >= LAST_ROUND ? "closed" : ""} /><span>{!snapshot.game.started ? "GAME READY" : round >= LAST_ROUND ? "MARKET CLOSED" : "LIVE MARKET"}</span><strong>{snapshot.game.started ? rounds[round].label : "시작 대기"}</strong></div><div className="view-screen-actions"><button onClick={toggleFullscreen}>{fullscreen ? "전체화면 종료" : "전체화면"}</button><button onClick={onLogout}>로그아웃</button><button aria-label="화면 메뉴 닫기" onClick={() => setMenuOpen(false)}>닫기 ×</button></div></header>}
     <section className="view-event-banner" key={`${snapshot.game.started}-${round}`}><div className="view-round-mark"><span>{round === 0 ? "OPEN" : "ROUND"}</span><strong>{round}</strong><small>/ 10</small></div><div className="view-event-copy"><span className="eyebrow">{snapshot.game.started ? "CURRENT MARKET EVENT" : "MARKET PREPARATION"}</span><h1>{snapshot.game.started ? rounds[round].theme : "게임 시작을 준비하고 있습니다"}</h1><p>{snapshot.game.started ? rounds[round].detail : "스태프가 참가 조와 시드머니를 확인한 뒤 시장을 시작합니다."}</p></div><div className="view-event-tags">{brief.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></section>
     <section className="view-dashboard-grid">
-      <section className="view-market-card"><header><div><span className="eyebrow">LIVE MARKET OVERVIEW</span><h2>전체 시장 · 실제 주가</h2></div><span>2초마다 자동 갱신</span></header><AllStocksChart round={round} prices={prices} /><div className="view-stock-board">{quotes.map(({ stock, price, change }) => <article key={stock.ticker}><i style={{ background: stock.color }} /><div><strong>{stock.name}</strong><small>{stock.ticker} · {stock.field}</small></div><em>{price === null ? "상장 전" : `${money.format(price)} BE`}<small className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`}</small></em></article>)}</div></section>
-      <aside className="view-ranking-card"><header><div><span className="eyebrow">TEAM PERFORMANCE</span><h2>조별 수익률</h2></div><span>{teams.length}개 조</span></header><div className="view-ranking-grid">{standings.map((team, index) => <article key={team.teamId}><i>{index + 1}</i><div><strong>{team.teamId}조</strong><span><b style={{ width: `${Math.max(3, Math.abs(team.returnRate) / maxReturn * 100)}%` }} className={team.returnRate >= 0 ? "positive" : "negative"} /></span></div><em className={team.returnRate >= 0 ? "up" : "down"}>{team.returnRate >= 0 ? "+" : ""}{team.returnRate.toFixed(1)}%<small>{money.format(team.totalAsset)} BE</small></em></article>)}</div><section className="view-reference"><span>MARKET NOTE</span><strong>이번 라운드 참고 포인트</strong><p>{brief.note}</p></section></aside>
+      <section className="view-market-card"><header><div><span className="eyebrow">LIVE MARKET OVERVIEW</span><h2>전체 시장 · 실제 주가</h2></div><span>2초마다 자동 갱신</span></header><AllStocksChart round={round} prices={prices} tone="projector" /><div className="view-stock-board">{quotes.map(({ stock, price, change }) => <article key={stock.ticker}><i style={{ background: stock.color }} /><div><strong>{stock.name}</strong><small>{stock.ticker} · {stock.field}</small></div><em>{price === null ? "상장 전" : `${money.format(price)} BE`}<small className={change === null ? "neutral" : change >= 0 ? "up" : "down"}>{change === null ? "—" : `${change >= 0 ? "+" : ""}${change.toFixed(1)}%`}</small></em></article>)}</div></section>
+      <aside className="view-ranking-card"><header><div><span className="eyebrow">TEAM PERFORMANCE</span><h2>조별 수익률</h2></div><span>자산 비공개 · {teams.length}개 조</span></header><div className="view-ranking-grid">{standings.map((team, index) => <article key={team.teamId}><i>{index + 1}</i><div><strong>{team.teamId}조</strong><span><b style={{ width: `${Math.max(3, Math.abs(team.returnRate) / maxReturn * 100)}%` }} className={team.returnRate >= 0 ? "positive" : "negative"} /></span></div><em className={team.returnRate >= 0 ? "up" : "down"}>{team.returnRate >= 0 ? "+" : ""}{team.returnRate.toFixed(1)}%</em></article>)}</div><section className="view-reference"><span>MARKET NOTE</span><strong>이번 라운드 참고 포인트</strong><p>{brief.note}</p></section></aside>
     </section>
     <footer className="view-round-footer"><span>ROUND PROGRESS</span><RoundProgress round={round} /></footer>
   </main>;
@@ -755,6 +774,7 @@ export default function Home() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [priceBoardOpen, setPriceBoardOpen] = useState(false);
   const [forceLogoutBusy, setForceLogoutBusy] = useState<number | null>(null);
+  const [cancelTradeBusy, setCancelTradeBusy] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   const refresh = useCallback(async () => {
@@ -785,6 +805,21 @@ export default function Home() {
     }
   }, [refresh]);
 
+  const cancelTrade = useCallback(async (trade: Trade) => {
+    if (!window.confirm(`${trade.team_id}조의 ${trade.ticker} ${trade.action === "buy" ? "매수" : "매도"} ${trade.quantity}주 거래를 취소할까요?\n현금과 보유 수량이 체결 전 상태로 되돌아갑니다.`)) return;
+    setCancelTradeBusy(trade.id);
+    try {
+      const response = await apiFetch("/api/game/cancel-trade", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tradeId: trade.id }) });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "거래를 취소하지 못했습니다.");
+      await refresh();
+    } catch (caught) {
+      window.alert(caught instanceof Error ? caught.message : "거래를 취소하지 못했습니다.");
+    } finally {
+      setCancelTradeBusy(null);
+    }
+  }, [refresh]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void refresh().catch((caught) => {
@@ -809,8 +844,8 @@ export default function Home() {
   if (session.role === "staff" && priceBoardOpen) return <PriceScheduleEditor snapshot={snapshot} refresh={refresh} onBack={() => setPriceBoardOpen(false)} onLogout={logout} />;
   if (session.role === "view") return <ViewDashboard snapshot={snapshot} onLogout={logout} />;
   if (!snapshot.game.started) {
-    if (session.role === "staff") return <main className="staff-shell"><Topbar session={session} round={0} onLogout={logout} presentation started={false} onOpenPriceBoard={() => setPriceBoardOpen(true)} /><SeedSetup initial={snapshot.teams} onStarted={refresh} onForceLogout={forceLogoutTeam} forceLogoutBusy={forceLogoutBusy} /></main>;
+    if (session.role === "staff") return <main className="staff-shell"><Topbar session={session} round={0} onLogout={logout} presentation started={false} onOpenPriceBoard={() => setPriceBoardOpen(true)} /><SeedSetup initial={(snapshot.teams ?? []).filter(isTeamView)} onStarted={refresh} onForceLogout={forceLogoutTeam} forceLogoutBusy={forceLogoutBusy} /></main>;
     return <WaitingScreen session={session} onLogout={logout} />;
   }
-  return session.role === "staff" ? <StaffDashboard snapshot={snapshot} refresh={refresh} onLogout={logout} onOpenPriceBoard={() => setPriceBoardOpen(true)} onForceLogout={forceLogoutTeam} forceLogoutBusy={forceLogoutBusy} /> : <TeamDashboard snapshot={snapshot} refresh={refresh} onLogout={logout} />;
+  return session.role === "staff" ? <StaffDashboard snapshot={snapshot} refresh={refresh} onLogout={logout} onOpenPriceBoard={() => setPriceBoardOpen(true)} onForceLogout={forceLogoutTeam} forceLogoutBusy={forceLogoutBusy} onCancelTrade={cancelTrade} cancelTradeBusy={cancelTradeBusy} /> : <TeamDashboard snapshot={snapshot} refresh={refresh} onLogout={logout} />;
 }

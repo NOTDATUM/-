@@ -45,10 +45,25 @@ export async function ensureGameSchema() {
       quantity INTEGER NOT NULL,
       price INTEGER NOT NULL,
       round INTEGER NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      canceled_at TEXT
     )`),
     db.prepare("CREATE INDEX IF NOT EXISTS trades_team_id_idx ON trades (team_id, id DESC)"),
+    db.prepare(`CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor TEXT NOT NULL DEFAULT 'staff',
+      action TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    db.prepare("CREATE INDEX IF NOT EXISTS admin_audit_logs_created_idx ON admin_audit_logs (id DESC)"),
   ]);
+
+  const tradeColumns = await db.prepare("PRAGMA table_info(trades)").all<{ name: string }>();
+  if (!tradeColumns.results.some((column) => column.name === "canceled_at")) {
+    await db.prepare("ALTER TABLE trades ADD COLUMN canceled_at TEXT").run();
+  }
 
   await db.prepare("INSERT OR IGNORE INTO game_state (id, round, started) VALUES (1, 0, 0)").run();
   const existing = await db.prepare("SELECT COUNT(*) AS count FROM teams").first<{ count: number }>();

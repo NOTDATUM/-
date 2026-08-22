@@ -26,6 +26,8 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /CURRENT MARKET EVENT/);
   assert.match(page, /조별 수익률/);
   assert.match(page, /이번 라운드 참고 포인트/);
+  assert.match(page, /자산 비공개/);
+  assert.match(page, /화면 메뉴/);
   assert.match(page, /전체화면/);
   assert.match(page, /전체 주식시장/);
   assert.match(page, /전체 차트/);
@@ -38,12 +40,16 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /전체 총자산/);
   assert.match(page, /참가 조 접속/);
   assert.match(page, /강제 로그아웃/);
+  assert.match(page, /운영 감사 로그/);
+  assert.match(page, /거래 취소/);
   assert.match(page, /자산 상세/);
   assert.match(page, /전체보기/);
   assert.match(page, /["']?label["']?: "10라운드"/);
   assert.match(server, /TEAM_PASSWORD/);
   assert.match(server, /STAFF_PASSWORD/);
   assert.match(server, /VIEW_PASSWORD/);
+  assert.match(server, /admin_audit_logs/);
+  assert.match(server, /cancel-trade/);
   assert.match(server, /SESSION_SIGNING_KEY/);
   assert.doesNotMatch(page, /codex-preview/);
   assert.doesNotMatch(page, /Your site is taking shape/);

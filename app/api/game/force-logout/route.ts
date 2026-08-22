@@ -1,4 +1,5 @@
 import { ensureGameSchema, getGameDb } from "../../../../db/game";
+import { adminAuditStatement } from "../../../lib/admin-audit";
 import { readSession } from "../../../lib/session";
 
 export async function POST(request: Request) {
@@ -18,6 +19,9 @@ export async function POST(request: Request) {
   const team = await db.prepare("SELECT 1 AS present FROM teams WHERE team_id = ?").bind(teamId).first();
   if (!team) return Response.json({ error: "존재하지 않는 조입니다." }, { status: 404 });
 
-  await db.prepare("UPDATE team_sessions SET session_version = session_version + 1, last_seen_at = NULL WHERE team_id = ?").bind(teamId).run();
+  await db.batch([
+    db.prepare("UPDATE team_sessions SET session_version = session_version + 1, last_seen_at = NULL WHERE team_id = ?").bind(teamId),
+    adminAuditStatement("force_logout", `${teamId}조를 강제 로그아웃했습니다.`, { teamId }),
+  ]);
   return Response.json({ ok: true, teamId });
 }

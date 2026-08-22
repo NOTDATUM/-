@@ -4,24 +4,28 @@ import { publicGameSession, readSession } from "../../lib/session";
 
 type TeamRow = { team_id: number; seed_money: number; cash: number };
 type HoldingRow = { team_id: number; ticker: string; shares: number };
-type TradeRow = { id: number; team_id: number; ticker: string; action: "buy" | "sell"; quantity: number; price: number; round: number; created_at: string };
+type TradeRow = { id: number; team_id: number; ticker: string; action: "buy" | "sell"; quantity: number; price: number; round: number; created_at: string; canceled_at: string | null };
 type PriceRow = { ticker: string; round: number; price: number | null };
 type PresenceRow = { team_id: number; last_seen_at: string | null; online: number };
+type AuditRow = { id: number; actor: string; action: string; summary: string; details: string | null; created_at: string };
 
 export async function GET() {
   const session = await readSession();
   if (!session) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
   await ensureGameSchema();
   const db = getGameDb();
-  const [gameResult, teamResult, holdingResult, tradeResult, priceResult, presenceResult] = await Promise.all([
+  const [gameResult, teamResult, holdingResult, tradeResult, priceResult, presenceResult, auditResult] = await Promise.all([
     db.prepare("SELECT round, started, updated_at FROM game_state WHERE id = 1").first<{ round: number; started: number; updated_at: string }>(),
     db.prepare("SELECT team_id, seed_money, cash FROM teams ORDER BY team_id").all<TeamRow>(),
     db.prepare("SELECT team_id, ticker, shares FROM holdings WHERE shares > 0 ORDER BY team_id, ticker").all<HoldingRow>(),
-    db.prepare("SELECT id, team_id, ticker, action, quantity, price, round, created_at FROM trades ORDER BY id DESC LIMIT 500").all<TradeRow>(),
+    db.prepare("SELECT id, team_id, ticker, action, quantity, price, round, created_at, canceled_at FROM trades ORDER BY id DESC LIMIT 500").all<TradeRow>(),
     db.prepare("SELECT ticker, round, price FROM price_schedule ORDER BY ticker, round").all<PriceRow>(),
     db.prepare(`SELECT team_id, last_seen_at,
       CASE WHEN last_seen_at IS NOT NULL AND last_seen_at >= datetime('now', '-12 seconds') THEN 1 ELSE 0 END AS online
       FROM team_sessions`).all<PresenceRow>(),
+    session.role === "staff"
+      ? db.prepare("SELECT id, actor, action, summary, details, created_at FROM admin_audit_logs ORDER BY id DESC LIMIT 100").all<AuditRow>()
+      : Promise.resolve({ results: [] as AuditRow[] }),
   ]);
   const game = gameResult ?? { round: 0, started: 0, updated_at: "" };
   const holdings = holdingResult.results ?? [];
@@ -41,7 +45,7 @@ export async function GET() {
       cash: team.cash,
       totalAsset: team.cash + stockValue,
       holdings: Object.fromEntries(teamHoldings.map((item) => [item.ticker, item.shares])),
-      trades: trades.filter((item) => item.team_id === team.team_id),
+      trades: trades.filter((item) => item.team_id === team.team_id && (session.role === "staff" || item.canceled_at === null)),
       online: Boolean(presenceRows.find((presence) => presence.team_id === team.team_id)?.online),
       lastSeenAt: presenceRows.find((presence) => presence.team_id === team.team_id)?.last_seen_at ?? null,
     };
@@ -58,8 +62,16 @@ export async function GET() {
     teams: session.role === "staff"
       ? teamViews
       : session.role === "view"
-        ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({ teamId, seedMoney, totalAsset }))
+        ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({
+          teamId,
+          returnRate: seedMoney ? Math.round((((totalAsset - seedMoney) / seedMoney) * 100) * 100) / 100 : 0,
+        }))
         : null,
+    auditLogs: session.role === "staff" ? (auditResult.results ?? []).map((log) => {
+      let details: unknown = null;
+      try { details = log.details ? JSON.parse(log.details) : null; } catch { details = null; }
+      return { id: log.id, actor: log.actor, action: log.action, summary: log.summary, details, createdAt: log.created_at };
+    }) : null,
   };
   return Response.json(response, { headers: { "Cache-Control": "no-store" } });
 }

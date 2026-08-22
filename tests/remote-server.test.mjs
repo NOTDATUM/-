@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 const projectRoot = resolve(new URL("..", import.meta.url).pathname);
@@ -81,6 +82,44 @@ async function login(baseUrl, id, password) {
   return data;
 }
 
+test("migrates an existing game database for cancellations and audit logs", async () => {
+  const dataDir = await mkdtemp(resolve(tmpdir(), "be-legacy-server-"));
+  const databasePath = resolve(dataDir, "be-game.sqlite");
+  const legacyDb = new DatabaseSync(databasePath);
+  legacyDb.exec(`CREATE TABLE trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id INTEGER NOT NULL,
+    ticker TEXT NOT NULL,
+    action TEXT NOT NULL,
+    quantity INTEGER NOT NULL,
+    price INTEGER NOT NULL,
+    round INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) STRICT;`);
+  legacyDb.close();
+  const port = 44000 + Math.floor(Math.random() * 1000);
+  let running;
+  try {
+    running = await startServer(port, dataDir);
+    const staff = await login(running.baseUrl, "staff", staffPassword);
+    const snapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const data = await snapshot.json();
+    assert.equal(snapshot.status, 200);
+    assert.deepEqual(data.auditLogs, []);
+    await stopServer(running.child);
+    running = null;
+    const migratedDb = new DatabaseSync(databasePath);
+    const columns = migratedDb.prepare("PRAGMA table_info(trades)").all();
+    assert.ok(columns.some((column) => column.name === "canceled_at"));
+    const auditTable = migratedDb.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'admin_audit_logs'").get();
+    assert.equal(auditTable.name, "admin_audit_logs");
+    migratedDb.close();
+  } finally {
+    if (running) await stopServer(running.child).catch(() => undefined);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("shares staff, view, and team state through the public game server and keeps it after restart", async () => {
   const dataDir = await mkdtemp(resolve(tmpdir(), "be-remote-server-"));
   const port = 43000 + Math.floor(Math.random() * 1000);
@@ -121,6 +160,9 @@ test("shares staff, view, and team state through the public game server and keep
     const preparedViewData = await preparedViewSnapshot.json();
     assert.equal(preparedViewData.teams.length, 5);
     assert.equal(preparedViewData.team, null);
+    assert.equal(preparedViewData.teams[0].returnRate, 0);
+    assert.equal(preparedViewData.teams[0].totalAsset, undefined);
+    assert.equal(preparedViewData.auditLogs, null);
     assert.equal(preparedViewData.market.prices.IMMU[0], 120);
     assert.equal(preparedViewData.market.prices.IMMU[1], null);
 
@@ -224,7 +266,8 @@ test("shares staff, view, and team state through the public game server and keep
     const viewSnapshot = await api(running.baseUrl, "/api/game", { token: view.token });
     const viewData = await viewSnapshot.json();
     assert.equal(viewData.game.round, 1);
-    assert.equal(viewData.teams[0].totalAsset, 1000);
+    assert.equal(viewData.teams[0].returnRate, 0);
+    assert.equal(viewData.teams[0].totalAsset, undefined);
     assert.equal(viewData.teams[0].cash, undefined);
     assert.equal(viewData.teams[0].holdings, undefined);
     assert.equal(viewData.teams[0].trades, undefined);
@@ -246,14 +289,78 @@ test("shares staff, view, and team state through the public game server and keep
     });
     assert.equal(deniedPriceUpdate.status, 403);
 
+    const viewDeniedCancel = await api(running.baseUrl, "/api/game/cancel-trade", {
+      method: "POST",
+      token: view.token,
+      body: { tradeId: staffData.teams[0].trades[0].id },
+    });
+    assert.equal(viewDeniedCancel.status, 403);
+    const teamDeniedCancel = await api(running.baseUrl, "/api/game/cancel-trade", {
+      method: "POST",
+      token: team.token,
+      body: { tradeId: staffData.teams[0].trades[0].id },
+    });
+    assert.equal(teamDeniedCancel.status, 403);
+
+    const sellTrade = await api(running.baseUrl, "/api/game/trade", {
+      method: "POST",
+      token: team.token,
+      body: { ticker: "IMMU", action: "sell", quantity: 1 },
+    });
+    assert.deepEqual(await sellTrade.json(), { ok: true, price: 149, quantity: 1, action: "sell" });
+    const staffAfterSell = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const staffAfterSellData = await staffAfterSell.json();
+    const sellTradeId = staffAfterSellData.teams[0].trades.find((item) => item.action === "sell").id;
+    const cancelSell = await api(running.baseUrl, "/api/game/cancel-trade", {
+      method: "POST",
+      token: staff.token,
+      body: { tradeId: sellTradeId },
+    });
+    assert.deepEqual(await cancelSell.json(), { ok: true, tradeId: sellTradeId, teamId: 1 });
+    const afterSellCancel = await api(running.baseUrl, "/api/game", { token: team.token });
+    const afterSellCancelData = await afterSellCancel.json();
+    assert.equal(afterSellCancelData.team.cash, 702);
+    assert.equal(afterSellCancelData.team.holdings.IMMU, 2);
+    assert.equal(afterSellCancelData.team.trades.length, 1);
+
+    const cancel = await api(running.baseUrl, "/api/game/cancel-trade", {
+      method: "POST",
+      token: staff.token,
+      body: { tradeId: staffData.teams[0].trades[0].id },
+    });
+    assert.deepEqual(await cancel.json(), { ok: true, tradeId: staffData.teams[0].trades[0].id, teamId: 1 });
+
+    const duplicateCancel = await api(running.baseUrl, "/api/game/cancel-trade", {
+      method: "POST",
+      token: staff.token,
+      body: { tradeId: staffData.teams[0].trades[0].id },
+    });
+    assert.equal(duplicateCancel.status, 409);
+
+    const canceledTeamSnapshot = await api(running.baseUrl, "/api/game", { token: team.token });
+    const canceledTeamData = await canceledTeamSnapshot.json();
+    assert.equal(canceledTeamData.team.cash, 1000);
+    assert.equal(canceledTeamData.team.holdings.IMMU, undefined);
+    assert.equal(canceledTeamData.team.trades.length, 0);
+
+    const canceledStaffSnapshot = await api(running.baseUrl, "/api/game", { token: staff.token });
+    const canceledStaffData = await canceledStaffSnapshot.json();
+    assert.equal(canceledStaffData.teams[0].cash, 1000);
+    assert.equal(canceledStaffData.teams[0].holdings.IMMU, undefined);
+    assert.ok(canceledStaffData.teams[0].trades[0].canceled_at);
+    assert.equal(canceledStaffData.auditLogs.filter((log) => log.action === "trade_cancel").length, 2);
+    assert.ok(canceledStaffData.auditLogs.some((log) => log.action === "round_advance"));
+
     await stopServer(running.child);
     running = await startServer(port, dataDir);
 
     const persisted = await api(running.baseUrl, "/api/game", { token: staff.token });
     const persistedData = await persisted.json();
     assert.equal(persistedData.game.round, 1);
-    assert.equal(persistedData.teams[0].holdings.IMMU, 2);
-    assert.equal(persistedData.teams[0].cash, 702);
+    assert.equal(persistedData.teams[0].holdings.IMMU, undefined);
+    assert.equal(persistedData.teams[0].cash, 1000);
+    assert.ok(persistedData.teams[0].trades[0].canceled_at);
+    assert.ok(persistedData.auditLogs.some((log) => log.action === "trade_cancel"));
 
     const deniedReset = await api(running.baseUrl, "/api/game/reset", { method: "POST", token: team.token });
     assert.equal(deniedReset.status, 403);
@@ -271,6 +378,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.deepEqual(resetData.teams[0].holdings, {});
     assert.equal(resetData.teams[0].trades.length, 0);
     assert.equal(resetData.market.prices.IMMU[2], 127);
+    assert.ok(resetData.auditLogs.some((log) => log.action === "game_reset"));
 
     await stopServer(running.child);
     running = await startServer(port, dataDir);

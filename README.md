@@ -11,7 +11,8 @@ A real-time mock stock market built for a Department of Biological Sciences recr
 - Share-based buy and sell orders
 - Live portfolio valuation and team leaderboard
 - Team presence monitoring and forced logout controls
-- Read-only room display with live market events and team returns
+- Durable staff audit log and reversible trade cancellation
+- Projector-optimized room display with live events and percentage-only team returns
 - Staff-managed seed money, game start, reset, and round progression
 - Editable prices for rounds that have not been revealed
 - Responsive participant interface with light and dark themes

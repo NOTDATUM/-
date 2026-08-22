@@ -1,5 +1,6 @@
 import { ensureGameSchema, getGameDb } from "../../../../db/game";
 import { LAST_ROUND, stocks } from "../../../game-data";
+import { adminAuditStatement } from "../../../lib/admin-audit";
 import { readSession } from "../../../lib/session";
 
 type PriceUpdate = { ticker?: string; round?: number; price?: number | null };
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
   await db.batch([
     ...updates.map((item) => db.prepare("UPDATE price_schedule SET price = ? WHERE ticker = ? AND round = ?").bind(item.price, item.ticker, item.round)),
     db.prepare("UPDATE game_state SET updated_at = CURRENT_TIMESTAMP WHERE id = 1"),
+    adminAuditStatement("price_update", `미공개 주가 ${updates.length}개를 수정했습니다.`, { updates }),
   ]);
   return Response.json({ ok: true, updated: updates.length });
 }

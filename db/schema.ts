@@ -29,4 +29,14 @@ export const trades = sqliteTable("trades", {
   price: integer("price").notNull(),
   round: integer("round").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  canceledAt: text("canceled_at"),
+});
+
+export const adminAuditLogs = sqliteTable("admin_audit_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  actor: text("actor").notNull().default("staff"),
+  action: text("action").notNull(),
+  summary: text("summary").notNull(),
+  details: text("details"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
