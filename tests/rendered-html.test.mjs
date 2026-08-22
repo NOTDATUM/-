@@ -28,6 +28,7 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /이번 라운드 참고 포인트/);
   assert.match(page, /자산 비공개/);
   assert.match(page, /화면 메뉴/);
+  assert.match(page, /종목 색상 범례/);
   assert.match(page, /전체화면/);
   assert.match(page, /전체 주식시장/);
   assert.match(page, /전체 차트/);
@@ -35,7 +36,10 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /상세보기/);
   assert.match(page, /화이트.*모드로 전환/);
   assert.match(page, /주가 \(BE\)/);
-  assert.match(page, /주가 변동표/);
+  assert.match(page, /주가 시나리오 관리/);
+  assert.match(page, /차트로 가격 수정/);
+  assert.match(page, /1 BE 단위/);
+  assert.doesNotMatch(page, /ROUND PROGRESS/);
   assert.doesNotMatch(page, /ALL STOCKS · INDEXED/);
   assert.match(page, /전체 총자산/);
   assert.match(page, /참가 조 접속/);
