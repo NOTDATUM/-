@@ -496,7 +496,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(resetData.teams[0].cash, 1000);
     assert.deepEqual(resetData.teams[0].holdings, {});
     assert.equal(resetData.teams[0].trades.length, 0);
-    assert.equal(resetData.market.prices.IMMU[2], 127);
+    assert.equal(resetData.market.prices.IMMU[2], 777);
     assert.ok(resetData.auditLogs.some((log) => log.action === "game_reset"));
 
     await stopServer(running.child);
@@ -508,6 +508,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(persistedResetData.game.started, false);
     assert.equal(persistedResetData.teams.length, 5);
     assert.equal(persistedResetData.teams[0].trades.length, 0);
+    assert.equal(persistedResetData.market.prices.IMMU[2], 777);
   } finally {
     if (running) await stopServer(running.child).catch(() => undefined);
     await rm(dataDir, { recursive: true, force: true });

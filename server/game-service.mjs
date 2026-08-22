@@ -272,18 +272,9 @@ export function createGameService({
         "UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
       ).run();
       db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
-      db.prepare("DELETE FROM price_schedule").run();
-      const insertPrice = db.prepare(
-        "INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)",
-      );
-      for (const stock of stocks) {
-        stock.prices.forEach((price, round) =>
-          insertPrice.run(stock.ticker, round, price),
-        );
-      }
       recordAdminAction(
         "game_reset",
-        "게임 상태와 주가 시나리오를 초기화했습니다.",
+        "게임 상태를 초기화했습니다. 저장된 주가 시나리오는 유지됩니다.",
       );
     });
   }

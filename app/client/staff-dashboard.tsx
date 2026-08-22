@@ -78,7 +78,7 @@ export function StaffDashboard({
   const reset = async () => {
     if (
       !window.confirm(
-        "게임을 초기화할까요? 거래 내역·보유 주식이 삭제되고, 주가 변동표와 시드머니가 기본값으로 돌아갑니다.",
+        "게임을 초기화할까요? 거래 내역·보유 주식이 삭제되고 시드머니는 기본값으로 돌아갑니다. 마지막으로 저장한 주가 시나리오는 유지됩니다.",
       )
     )
       return;
