@@ -138,11 +138,15 @@ export function AllStocksChart({
       if (!prepared) return;
       const { context, width, height } = prepared;
       const projector = tone === "projector" || tone === "projector-light";
+      const projectorLight = tone === "projector-light";
       const light = tone === "light" || tone === "projector-light";
+      const chartLabelSize = projector
+        ? Math.max(18, Math.min(21, width / 68))
+        : 12;
       const pad = compact
         ? { top: 12, right: 10, bottom: 22, left: 10 }
         : projector
-          ? { top: 37, right: 32, bottom: 58, left: 88 }
+          ? { top: 42, right: 34, bottom: 64, left: 96 }
           : { top: 31, right: 26, bottom: 46, left: 72 };
       const plotWidth = width - pad.left - pad.right;
       const plotHeight = height - pad.top - pad.bottom;
@@ -154,21 +158,25 @@ export function AllStocksChart({
           plotHeight;
 
       if (!compact) {
-        context.font = projector ? "750 15px Arial" : "650 12px Arial";
+        context.font = `${projector ? 750 : 650} ${chartLabelSize}px "Apple SD Gothic Neo", Arial, sans-serif`;
         context.fillStyle =
-          light
+          projectorLight
+            ? "#26364b"
+            : light
             ? "#6b7684"
             : projector
               ? "rgba(255,255,255,.92)"
               : "rgba(211,222,240,.55)";
         context.textAlign = "left";
-        context.fillText("주가 (BE)", pad.left, 13);
+        context.fillText("주가 (BE)", pad.left, projector ? chartLabelSize + 3 : 13);
         for (let grid = 0; grid <= 5; grid += 1) {
           const value =
             viewport.max - (grid / 5) * (viewport.max - viewport.min);
           const py = y(value);
           context.strokeStyle =
-            light
+            projectorLight
+              ? "rgba(23,43,64,.18)"
+              : light
               ? "rgba(25,31,40,.09)"
               : projector
                 ? "rgba(255,255,255,.2)"
@@ -179,7 +187,9 @@ export function AllStocksChart({
           context.lineTo(width - pad.right, py);
           context.stroke();
           context.fillStyle =
-            light
+            projectorLight
+              ? "#31445b"
+              : light
               ? "#8b95a1"
               : projector
                 ? "rgba(255,255,255,.88)"
@@ -188,11 +198,13 @@ export function AllStocksChart({
           context.fillText(
             money.format(Math.round(value)),
             pad.left - 11,
-            py + 4,
+            py + (projector ? 6 : 4),
           );
         }
         context.strokeStyle =
-          light
+          projectorLight
+            ? "rgba(23,43,64,.38)"
+            : light
             ? "rgba(25,31,40,.16)"
             : projector
               ? "rgba(255,255,255,.42)"
@@ -210,12 +222,16 @@ export function AllStocksChart({
         ) {
           context.fillStyle =
             index <= round
-              ? light
+              ? projectorLight
+                ? "#25364b"
+                : light
                 ? "#6b7684"
                 : projector
                   ? "rgba(255,255,255,.94)"
                   : "rgba(225,233,246,.7)"
-              : light
+              : projectorLight
+                ? "rgba(37,54,75,.36)"
+                : light
                 ? "#d1d6db"
                 : projector
                   ? "rgba(255,255,255,.28)"
@@ -224,7 +240,7 @@ export function AllStocksChart({
           context.fillText(
             index === 0 ? "기준가" : `${index}라운드`,
             x(index),
-            height - 13,
+            height - (projector ? 17 : 13),
           );
         }
       }

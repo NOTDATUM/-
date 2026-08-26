@@ -88,3 +88,18 @@ test("keeps participant and staff tables inside the viewport", async () => {
   assert.doesNotMatch(css, /min-width: 1130px/);
   assert.doesNotMatch(css, /min-width: 1450px/);
 });
+
+test("keeps the public view legible on a projector", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const charts = await readFile(
+    new URL("../app/client/charts.tsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(css, /\.view-event-copy h1 \{[^}]*font-size: clamp\(38px,2\.8vw,54px\)/);
+  assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(4,minmax\(0,1fr\)\)/);
+  assert.match(css, /\.view-ranking-grid article > em \{[^}]*font-size: 20px/);
+  assert.match(css, /\.view-reference p \{[^}]*font-size: 14px/);
+  assert.match(charts, /Math\.max\(18, Math\.min\(21, width \/ 68\)\)/);
+  assert.match(charts, /projectorLight/);
+});
