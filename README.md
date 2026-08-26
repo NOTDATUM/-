@@ -7,13 +7,14 @@ A real-time mock stock market built for a Department of Biological Sciences recr
 ## Features
 
 - Separate staff administration, public live-view, and team accounts
-- Deterministic ten-round stock price scenarios
+- Deterministic seven-round stock price scenarios
 - Share-based buy and sell orders
 - Live portfolio valuation and team leaderboard
 - Team presence monitoring and forced logout controls
 - Durable staff audit log and reversible trade cancellation
 - Projector-optimized room display with live events and percentage-only team returns
 - Staff-managed seed money, game start, reset, and round progression
+- Staff-managed hint-coin balances with quick deduction controls and audit logs
 - Editable prices for rounds that have not been revealed
 - Responsive participant interface with light and dark themes
 
