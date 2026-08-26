@@ -79,7 +79,9 @@ test("keeps participant and staff tables inside the viewport", async () => {
   assert.match(css, /\.client-holdings \{[^}]*display: grid/);
   assert.match(css, /\.client-side-column \{[^}]*grid-template-rows: auto auto minmax\(0,1fr\)/);
   assert.match(css, /\.admin-hint-editor \{[^}]*grid-template-columns:/);
-  assert.match(css, /\.admin-hint-editor input \{[^}]*height: 42px/);
+  assert.match(css, /\.admin-team-table \{[^}]*padding: 0 12px 12px/);
+  assert.match(css, /\.admin-team-table td \{[^}]*height: 68px/);
+  assert.match(css, /\.admin-hint-editor input \{[^}]*height: 36px/);
   assert.doesNotMatch(staffDashboard, /apply\(value \+ 100\)/);
   assert.match(css, /\.admin-team-table table \{[^}]*table-layout: fixed/);
   assert.match(css, /\.price-schedule-table \{[^}]*table-layout: fixed/);
