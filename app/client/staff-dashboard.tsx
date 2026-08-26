@@ -331,9 +331,9 @@ export function StaffDashboard({
                         <td>{money.format(team.cash)} BE</td>
                         <td>
                           <HintCoinEditor
-                            key={`${team.teamId}:${team.hintCoins}`}
+                            key={`${team.teamId}:${team.hintCoins ?? 0}`}
                             teamId={team.teamId}
-                            value={team.hintCoins}
+                            value={team.hintCoins ?? 0}
                             busy={hintCoinBusy === team.teamId}
                             onUpdate={updateHintCoins}
                           />

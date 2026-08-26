@@ -281,7 +281,7 @@ export function TeamDashboard({
               <div className="client-hint-metric">
                 <span>힌트코인</span>
                 <strong>
-                  {money.format(team.hintCoins)} <em>COIN</em>
+                  {money.format(team.hintCoins ?? 0)} <em>COIN</em>
                 </strong>
               </div>
             </div>
