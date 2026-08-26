@@ -4,6 +4,7 @@ export const MAX_ORDER_QUANTITY = 1_000_000;
 export const DEFAULT_TEAM_COUNT = 12;
 export const MAX_TEAM_COUNT = 30;
 export const CLIENT_THEME_KEY = "be-client-theme";
+export const VIEW_THEME_KEY = "be-view-theme";
 
 export const viewRoundBriefs = [
   {

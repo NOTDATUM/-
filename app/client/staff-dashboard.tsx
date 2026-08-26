@@ -63,9 +63,6 @@ function HintCoinEditor({
             −{amount}
           </button>
         ))}
-        <button disabled={busy} onClick={() => apply(value + 100)}>
-          +100
-        </button>
       </nav>
     </div>
   );

@@ -115,7 +115,7 @@ export function AllStocksChart({
   prices: PriceSchedule;
   compact?: boolean;
   selectedTicker?: string | null;
-  tone?: "light" | "dark" | "projector";
+  tone?: "light" | "dark" | "projector" | "projector-light";
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<ChartViewport | null>(null);
@@ -137,7 +137,8 @@ export function AllStocksChart({
       const prepared = prepareCanvas(canvas);
       if (!prepared) return;
       const { context, width, height } = prepared;
-      const projector = tone === "projector";
+      const projector = tone === "projector" || tone === "projector-light";
+      const light = tone === "light" || tone === "projector-light";
       const pad = compact
         ? { top: 12, right: 10, bottom: 22, left: 10 }
         : projector
@@ -155,7 +156,7 @@ export function AllStocksChart({
       if (!compact) {
         context.font = projector ? "750 15px Arial" : "650 12px Arial";
         context.fillStyle =
-          tone === "light"
+          light
             ? "#6b7684"
             : projector
               ? "rgba(255,255,255,.92)"
@@ -167,7 +168,7 @@ export function AllStocksChart({
             viewport.max - (grid / 5) * (viewport.max - viewport.min);
           const py = y(value);
           context.strokeStyle =
-            tone === "light"
+            light
               ? "rgba(25,31,40,.09)"
               : projector
                 ? "rgba(255,255,255,.2)"
@@ -178,7 +179,7 @@ export function AllStocksChart({
           context.lineTo(width - pad.right, py);
           context.stroke();
           context.fillStyle =
-            tone === "light"
+            light
               ? "#8b95a1"
               : projector
                 ? "rgba(255,255,255,.88)"
@@ -191,7 +192,7 @@ export function AllStocksChart({
           );
         }
         context.strokeStyle =
-          tone === "light"
+          light
             ? "rgba(25,31,40,.16)"
             : projector
               ? "rgba(255,255,255,.42)"
@@ -209,12 +210,12 @@ export function AllStocksChart({
         ) {
           context.fillStyle =
             index <= round
-              ? tone === "light"
+              ? light
                 ? "#6b7684"
                 : projector
                   ? "rgba(255,255,255,.94)"
                   : "rgba(225,233,246,.7)"
-              : tone === "light"
+              : light
                 ? "#d1d6db"
                 : projector
                   ? "rgba(255,255,255,.28)"

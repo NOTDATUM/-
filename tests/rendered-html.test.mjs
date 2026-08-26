@@ -35,6 +35,8 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /화면 메뉴/);
   assert.match(page, /종목 색상 범례/);
   assert.match(page, /전체화면/);
+  assert.match(page, /be-view-theme/);
+  assert.match(page, /projector-light/);
   assert.match(page, /전체 주식시장/);
   assert.match(page, /전체 차트/);
   assert.match(page, /단일 차트/);
@@ -69,10 +71,16 @@ test("builds the Biology Exchange login and role-based game", async () => {
 
 test("keeps participant and staff tables inside the viewport", async () => {
   const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const staffDashboard = await readFile(
+    new URL("../app/client/staff-dashboard.tsx", import.meta.url),
+    "utf8",
+  );
 
   assert.match(css, /\.client-holdings \{[^}]*display: grid/);
   assert.match(css, /\.client-side-column \{[^}]*grid-template-rows: auto auto minmax\(0,1fr\)/);
   assert.match(css, /\.admin-hint-editor \{[^}]*grid-template-columns:/);
+  assert.match(css, /\.admin-hint-editor input \{[^}]*height: 42px/);
+  assert.doesNotMatch(staffDashboard, /apply\(value \+ 100\)/);
   assert.match(css, /\.admin-team-table table \{[^}]*table-layout: fixed/);
   assert.match(css, /\.price-schedule-table \{[^}]*table-layout: fixed/);
   assert.doesNotMatch(css, /min-width: 1130px/);

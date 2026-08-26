@@ -4,8 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { LAST_ROUND, rounds, stocks } from "../game-data";
 import { AllStocksChart } from "./charts";
 import { Brand } from "./common";
-import { viewRoundBriefs } from "./constants";
-import { isViewTeamPerformance, type Snapshot } from "./types";
+import { VIEW_THEME_KEY, viewRoundBriefs } from "./constants";
+import {
+  isViewTeamPerformance,
+  type ClientTheme,
+  type Snapshot,
+} from "./types";
 
 export function ViewDashboard({
   snapshot,
@@ -22,6 +26,13 @@ export function ViewDashboard({
   const prices = snapshot.market.prices;
   const [fullscreen, setFullscreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [viewTheme, setViewTheme] = useState<ClientTheme>(() => {
+    if (typeof window === "undefined") return "dark";
+    const savedTheme = window.localStorage.getItem(VIEW_THEME_KEY);
+    return savedTheme === "light" || savedTheme === "dark"
+      ? savedTheme
+      : "dark";
+  });
   useEffect(() => {
     const update = () => setFullscreen(Boolean(document.fullscreenElement));
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -53,8 +64,17 @@ export function ViewDashboard({
     else await document.documentElement.requestFullscreen();
     setMenuOpen(false);
   };
+  const toggleTheme = () => {
+    setViewTheme((current) => {
+      const next = current === "dark" ? "light" : "dark";
+      window.localStorage.setItem(VIEW_THEME_KEY, next);
+      return next;
+    });
+  };
   return (
-    <main className={`view-shell ${teams.length > 16 ? "dense" : ""}`}>
+    <main
+      className={`view-shell theme-${viewTheme} ${teams.length > 16 ? "dense" : ""}`}
+    >
       {!menuOpen && (
         <button
           className="view-menu-trigger"
@@ -97,7 +117,16 @@ export function ViewDashboard({
             </strong>
           </div>
           <div className="view-screen-actions">
-            <button onClick={toggleFullscreen}>
+            <button
+              className="view-theme-toggle"
+              aria-label={`${viewTheme === "dark" ? "화이트" : "블랙"} 모드로 전환`}
+              aria-pressed={viewTheme === "light"}
+              onClick={toggleTheme}
+            >
+              <span aria-hidden="true">{viewTheme === "dark" ? "☀" : "☾"}</span>
+              {viewTheme === "dark" ? "화이트" : "블랙"}
+            </button>
+            <button className="view-primary-action" onClick={toggleFullscreen}>
               {fullscreen ? "전체화면 종료" : "전체화면"}
             </button>
             <button onClick={onLogout}>로그아웃</button>
@@ -117,7 +146,7 @@ export function ViewDashboard({
         <div className="view-round-mark">
           <span>{round === 0 ? "OPEN" : "ROUND"}</span>
           <strong>{round}</strong>
-          <small>/ 10</small>
+          <small>/ {LAST_ROUND}</small>
         </div>
         <div className="view-event-copy">
           <span className="eyebrow">
@@ -151,7 +180,11 @@ export function ViewDashboard({
             </div>
             <span>2초마다 자동 갱신</span>
           </header>
-          <AllStocksChart round={round} prices={prices} tone="projector" />
+          <AllStocksChart
+            round={round}
+            prices={prices}
+            tone={viewTheme === "light" ? "projector-light" : "projector"}
+          />
           <div className="view-chart-legend" aria-label="종목 색상 범례">
             {stocks.map((stock) => (
               <span key={stock.ticker}>
