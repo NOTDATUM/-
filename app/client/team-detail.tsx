@@ -41,17 +41,6 @@ export function StockProfile({ stock }: { stock: Stock }) {
           <p>{stock.risk}</p>
         </article>
       </div>
-      <div className="sensitivity-row">
-        <span>사업 민감도</span>
-        <div>
-          {Object.entries(stock.sensitivities).map(([label, value]) => (
-            <em key={label}>
-              <small>{label}</small>
-              <strong>{value}</strong>
-            </em>
-          ))}
-        </div>
-      </div>
     </section>
   );
 }

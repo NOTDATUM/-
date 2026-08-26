@@ -54,6 +54,7 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /힌트코인/);
   assert.match(page, /자산 상세/);
   assert.match(page, /전체보기/);
+  assert.doesNotMatch(page, /사업 민감도/);
   assert.match(page, /["']?label["']?: "7라운드"/);
   assert.match(server, /TEAM_PASSWORD/);
   assert.match(server, /STAFF_PASSWORD/);
@@ -64,4 +65,14 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(server, /SESSION_SIGNING_KEY/);
   assert.doesNotMatch(page, /codex-preview/);
   assert.doesNotMatch(page, /Your site is taking shape/);
+});
+
+test("keeps participant and staff tables inside the viewport", async () => {
+  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+
+  assert.match(css, /\.client-holdings \{[^}]*display: grid/);
+  assert.match(css, /\.admin-team-table table \{[^}]*table-layout: fixed/);
+  assert.match(css, /\.price-schedule-table \{[^}]*table-layout: fixed/);
+  assert.doesNotMatch(css, /min-width: 1130px/);
+  assert.doesNotMatch(css, /min-width: 1450px/);
 });
