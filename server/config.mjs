@@ -32,7 +32,7 @@ function parseAllowedOrigins() {
 export function loadServerConfig() {
   const teamPassword = requiredEnv("TEAM_PASSWORD");
   const staffPassword = requiredEnv("STAFF_PASSWORD");
-  const viewPassword = process.env.VIEW_PASSWORD?.trim() || staffPassword;
+  const viewPassword = process.env.VIEW_PASSWORD?.trim() || "12345678";
   const signingKey = requiredEnv("SESSION_SIGNING_KEY");
   if (signingKey.length < 32) {
     throw new Error("SESSION_SIGNING_KEY는 32자 이상이어야 합니다.");

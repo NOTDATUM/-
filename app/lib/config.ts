@@ -19,7 +19,7 @@ export function getRuntimeSecrets() {
   return {
     teamPassword: runtime.TEAM_PASSWORD,
     staffPassword: runtime.STAFF_PASSWORD,
-    viewPassword: runtime.VIEW_PASSWORD || runtime.STAFF_PASSWORD,
+    viewPassword: runtime.VIEW_PASSWORD || "12345678",
     sessionSigningKey: runtime.SESSION_SIGNING_KEY,
   };
 }

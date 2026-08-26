@@ -62,6 +62,7 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(server, /TEAM_PASSWORD/);
   assert.match(server, /STAFF_PASSWORD/);
   assert.match(server, /VIEW_PASSWORD/);
+  assert.match(server, /VIEW_PASSWORD \|\| "12345678"/);
   assert.match(server, /admin_audit_logs/);
   assert.match(server, /cancel-trade/);
   assert.match(server, /hint-coins/);
