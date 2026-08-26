@@ -183,7 +183,13 @@ export function TeamDashboard({
           <section className="client-market-card">
             <header className="client-market-head">
               <div>
-                <span className="client-kicker">
+                <span
+                  className={`client-kicker ${
+                    chartMode === "all"
+                      ? "client-market-overview-label"
+                      : ""
+                  }`}
+                >
                   {chartMode === "single"
                     ? `${stock.ticker} · ${stock.field}`
                     : `전체 시장 · ${stocks.length}개 종목`}
@@ -503,12 +509,10 @@ export function TeamDashboard({
             className="client-recent-card client-recent-summary"
             aria-labelledby="client-recent-heading"
           >
-            <h2 className="sr-only" id="client-recent-heading">
-              최근 거래
+            <h2 className="client-recent-label" id="client-recent-heading">
+              최근 거래 <span aria-hidden="true">-</span>{" "}
+              <strong>{team.trades.length}건</strong>
             </h2>
-            <strong aria-label={`최근 거래 ${team.trades.length}건`}>
-              {team.trades.length}<small>건</small>
-            </strong>
             <button
               className="client-card-link"
               onClick={() => setDetailView("trades")}

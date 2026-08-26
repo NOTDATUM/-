@@ -234,7 +234,7 @@ export function ViewDashboard({
       <section className="view-dashboard-grid">
         <section className="view-market-card">
           <header>
-            <div>
+            <div className="view-section-heading">
               <span className="eyebrow">전체 종목 현황</span>
               <h2>전체 종목 주가 흐름</h2>
             </div>
@@ -259,7 +259,7 @@ export function ViewDashboard({
         </section>
         <aside className="view-ranking-card">
           <header className="view-ranking-heading">
-            <div className="view-ranking-title">
+            <div className="view-ranking-title view-section-heading">
               <span className="eyebrow">참가 조 현황</span>
               <h2>조별 누적 수익률</h2>
             </div>

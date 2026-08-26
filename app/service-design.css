@@ -950,6 +950,15 @@ input:disabled {
   font-size: 13px;
 }
 
+.client-kicker.client-market-overview-label,
+.toss-client.theme-dark .client-kicker.client-market-overview-label {
+  color: var(--client-text);
+  font-size: clamp(20px, 1.45vw, 23px);
+  font-weight: 760;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
 .client-market-title {
   margin-top: 5px;
 }
@@ -1476,17 +1485,28 @@ input:disabled {
   overflow: hidden;
 }
 
-.client-recent-summary > strong {
+.client-recent-summary .client-recent-label {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin: 0;
   color: var(--client-text);
-  font: 760 24px/1 var(--font-sans);
-  font-variant-numeric: tabular-nums;
+  font: 700 16px/1.25 var(--font-sans);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
 }
 
-.client-recent-summary > strong small {
-  margin-left: 4px;
-  color: var(--client-text-secondary);
-  font-size: 13px;
-  font-weight: 650;
+.client-recent-summary .client-recent-label > span {
+  color: var(--client-text-tertiary);
+  font-weight: 550;
+}
+
+.client-recent-summary .client-recent-label > strong {
+  color: var(--client-text);
+  font-size: 18px;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
 }
 
 .client-recent-summary .client-card-link {
@@ -2288,8 +2308,10 @@ input:disabled {
 
 .admin-current-event > span,
 .admin-next-event > span {
+  display: block;
   color: var(--ds-text-tertiary);
   font-size: 11px;
+  line-height: 1.2;
 }
 
 .admin-current-event h3 {
@@ -2314,7 +2336,9 @@ input:disabled {
 }
 
 .admin-advance {
+  width: auto;
   min-height: 44px;
+  margin: 11px 14px 14px;
   border-color: var(--ds-action);
   border-radius: var(--radius-control);
   background: var(--ds-action);
@@ -2409,6 +2433,30 @@ input:disabled {
   flex-direction: column;
 }
 
+.admin-round-panel .admin-panel-heading,
+.admin-activity-panel .admin-panel-heading,
+.admin-audit-panel .admin-panel-heading {
+  flex: 0 0 auto;
+}
+
+.admin-round-panel .admin-panel-heading > div,
+.admin-activity-panel .admin-panel-heading > div,
+.admin-audit-panel .admin-panel-heading > div {
+  min-width: 0;
+}
+
+.admin-panel-heading h2 {
+  overflow: hidden;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-panel-heading .eyebrow {
+  display: block;
+  line-height: 1.2;
+}
+
 .admin-current-event p {
   display: -webkit-box;
   overflow: hidden;
@@ -2419,7 +2467,8 @@ input:disabled {
 .admin-activity-panel,
 .admin-audit-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto 116px;
+  align-content: start;
 }
 
 .admin-panel-heading-actions {
@@ -2456,11 +2505,33 @@ input:disabled {
 
 .admin-history-preview {
   min-height: 0;
-  height: auto;
-  max-height: none;
+  height: 116px;
+  max-height: 116px;
+  padding-block: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+.admin-history-preview.admin-activity-list article,
+.admin-history-preview.admin-audit-list article {
+  height: 58px;
+  min-height: 58px;
+}
+
+.admin-history-preview.admin-activity-list p,
+.admin-history-preview.admin-audit-list p {
+  min-width: 0;
+}
+
+.admin-history-preview.admin-activity-list p strong,
+.admin-history-preview.admin-activity-list p small,
+.admin-history-preview.admin-audit-list p strong,
+.admin-history-preview.admin-audit-list p small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-activity-list article.is-canceled {
@@ -2640,22 +2711,40 @@ input:disabled {
   box-shadow: none;
 }
 
+.scenario-chart-panel > header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: 16px;
+}
+
+.scenario-chart-panel > header > div {
+  min-width: 0;
+}
+
 .scenario-chart-panel > header h2 {
   font-size: 21px;
 }
 
 .scenario-chart-panel > header p {
+  max-width: 68ch;
   color: var(--ds-text-secondary);
   font-size: 13px;
   line-height: 1.55;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .scenario-chart-panel > header > em {
+  max-width: 190px;
   border-color: var(--ds-border-strong);
   border-radius: 6px;
   background: var(--ds-surface-raised);
   color: #9cdeb5;
   font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .scenario-stock-tabs {
@@ -3324,10 +3413,13 @@ input:disabled {
 .view-ranking-card > header,
 .view-shell.theme-light .view-market-card > header,
 .view-shell.theme-light .view-ranking-card > header {
+  min-width: 0;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding-block: 6px;
   border-bottom: 1px solid var(--view-border);
 }
 
@@ -3344,23 +3436,35 @@ input:disabled {
   min-width: 0;
 }
 
+.view-section-heading {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+}
+
 .view-market-card h2,
 .view-ranking-card h2,
 .view-shell.theme-light .view-market-card h2,
 .view-shell.theme-light .view-ranking-card h2 {
-  margin: 4px 0 0;
+  margin: 0;
   color: var(--view-text);
   font-size: clamp(23px, 1.65vw, 28px);
   font-weight: 760;
+  line-height: 1.12;
   letter-spacing: -0.025em;
+  word-break: keep-all;
 }
 
 .view-market-card .eyebrow,
 .view-ranking-card .eyebrow,
 .view-shell.theme-light .view-market-card .eyebrow,
 .view-shell.theme-light .view-ranking-card .eyebrow {
+  display: block;
+  margin: 0;
   color: var(--view-accent);
   font-size: 13px;
+  line-height: 1.2;
 }
 
 .view-market-card > header > span,
@@ -3727,10 +3831,10 @@ input:disabled {
 
   .admin-side-column {
     height: min(612px, calc(100svh - 286px));
-    min-height: 560px;
-    grid-template-rows: 218px minmax(0, 1fr) minmax(0, 1fr);
+    min-height: 570px;
+    grid-template-rows: minmax(218px, 1fr) 168px 168px;
     gap: 8px;
-    overflow: hidden;
+    overflow: visible;
   }
 
   .admin-round-panel,
@@ -3759,13 +3863,13 @@ input:disabled {
   .admin-advance {
     min-height: 40px;
     margin-top: auto;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
 
   .admin-activity-list,
   .admin-audit-list {
-    height: auto;
-    max-height: none;
+    height: 116px;
+    max-height: 116px;
     overflow: auto;
   }
 }
@@ -3940,7 +4044,7 @@ input:disabled {
   }
 
   .view-ranking-card {
-    grid-template-rows: 74px minmax(0, 1fr) auto;
+    grid-template-rows: 62px minmax(0, 1fr) auto;
     padding-inline: 10px;
   }
 
@@ -4604,10 +4708,19 @@ input:disabled {
 
   .price-editor-heading > div:last-child,
   .price-editor-guide,
-  .scenario-chart-panel > header,
   .scenario-chart-guide {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .scenario-chart-panel > header {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .scenario-chart-panel > header > em {
+    max-width: 100%;
   }
 
   .price-editor-guide,
@@ -4724,10 +4837,19 @@ input:disabled {
     height: 34px;
   }
 
+  .admin-hint-editor input,
+  .admin-hint-editor button,
+  .admin-hint-editor > div:first-child button,
+  .admin-hint-editor > div[role="group"] button {
+    height: 32px;
+    min-height: 32px;
+  }
+
   .admin-side-column {
-    height: calc(100svh - 240px);
-    min-height: 470px;
-    grid-template-rows: 190px minmax(0, 1fr) minmax(0, 1fr);
+    height: calc(100svh - 221px);
+    min-height: 547px;
+    grid-template-rows: 199px 166px 166px;
+    overflow: visible;
   }
 
   .admin-current-event p {
@@ -4735,11 +4857,23 @@ input:disabled {
   }
 
   .admin-current-event {
-    padding-block: 5px;
+    padding-block: 3px;
+  }
+
+  .admin-next-event {
+    padding-block: 4px;
   }
 
   .admin-advance {
     min-height: 36px;
+  }
+}
+
+@media (min-width: 1281px) and (min-height: 768px) and (max-height: 820px) {
+  .admin-shell {
+    height: 100svh;
+    min-height: 0;
+    overflow: hidden;
   }
 }
 
