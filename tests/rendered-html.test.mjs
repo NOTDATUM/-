@@ -31,7 +31,7 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /현재 라운드 주요 공지/);
   assert.match(page, /조별 누적 수익률/);
   assert.match(page, /이번 라운드 참고 정보/);
-  assert.match(page, /실제 자산은 공개하지 않음/);
+  assert.doesNotMatch(page, /실제 자산은 공개하지 않음/);
   assert.match(page, /화면 메뉴/);
   assert.match(page, /종목 색상 범례/);
   assert.match(page, /전체화면/);
@@ -56,6 +56,7 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /힌트코인/);
   assert.match(page, /자산 상세/);
   assert.match(page, /전체보기/);
+  assert.match(page, /전체 보기/);
   assert.doesNotMatch(page, /사업 민감도/);
   assert.match(page, /["']?label["']?: "7라운드"/);
   assert.match(server, /TEAM_PASSWORD/);
@@ -78,6 +79,10 @@ test("uses a responsive service design system for participant and staff screens"
     new URL("../app/client/staff-dashboard.tsx", import.meta.url),
     "utf8",
   );
+  const teamDashboard = await readFile(
+    new URL("../app/client/team-dashboard.tsx", import.meta.url),
+    "utf8",
+  );
 
   assert.match(css, /\.client-holdings \{[^}]*display: grid/);
   assert.match(css, /--ds-action:/);
@@ -91,6 +96,16 @@ test("uses a responsive service design system for participant and staff screens"
   assert.match(css, /\.price-schedule-table \{[^}]*table-layout: fixed/);
   assert.match(css, /@media \(max-width: 820px\)/);
   assert.match(css, /\.price-schedule-table \{[^}]*width: 980px/);
+  assert.match(css, /pretendardvariable-dynamic-subset/);
+  assert.match(css, /\.admin-history-modal \{/);
+  assert.match(css, /\.admin-history-preview \{/);
+  assert.doesNotMatch(staffDashboard, /<RoundProgress round=\{round\}/);
+  assert.match(staffDashboard, /setHistoryView\("trades"\)/);
+  assert.match(staffDashboard, /setHistoryView\("audit"\)/);
+  assert.match(teamDashboard, /lineStyle="solid"/);
+  assert.match(teamDashboard, /showScaleBadge=\{false\}/);
+  assert.match(teamDashboard, /client-recent-summary/);
+  assert.doesNotMatch(teamDashboard, />시장 흐름</);
 });
 
 test("keeps the public view legible on a projector", async () => {
@@ -103,10 +118,10 @@ test("keeps the public view legible on a projector", async () => {
     "utf8",
   );
 
-  assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(46px, 3\.6vw, 58px\)/);
+  assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(36px, 3vw, 46px\)/);
   assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
-  assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 780 24px/);
-  assert.match(css, /\.view-reference p \{[^}]*font-size: 16px/);
+  assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 780 22px/);
+  assert.match(css, /\.view-reference p \{[^}]*font-size: 14px/);
   assert.match(css, /@media \(max-width: 1179px\)/);
   assert.match(css, /\.view-shell,[^}]*\.view-shell\.theme-light \{[^}]*height: auto/);
   assert.match(css, /@media \(min-width: 900px\) and \(max-width: 1179px\)/);
@@ -116,4 +131,6 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(charts, /projectorLight/);
   assert.match(charts, /lightChartColors/);
   assert.match(charts, /lineDashPatterns/);
+  assert.match(charts, /lineStyle === "solid"/);
+  assert.match(charts, /showScaleBadge/);
 });

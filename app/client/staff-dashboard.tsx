@@ -1,12 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../api-client";
 import { LAST_ROUND, rounds } from "../game-data";
-import { RoundProgress, Topbar } from "./common";
+import { Topbar } from "./common";
 import { money } from "./constants";
 import { StaffTeamDetail } from "./staff-team-detail";
 import { isTeamView, type Snapshot, type Trade } from "./types";
+
+type StaffHistoryView = "trades" | "audit";
+type StaffTrade = Trade & { teamId: number };
+
+function auditTimestamp(createdAt: string) {
+  return new Date(`${createdAt}Z`).toLocaleString("ko-KR", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function HintCoinEditor({
   teamId,
@@ -95,8 +107,10 @@ export function StaffDashboard({
   const round = snapshot.game.round;
   const prices = snapshot.market.prices;
   const [detailTeam, setDetailTeam] = useState<number | null>(null);
+  const [historyView, setHistoryView] = useState<StaffHistoryView | null>(null);
   const [busy, setBusy] = useState(false);
   const [hintCoinBusy, setHintCoinBusy] = useState<number | null>(null);
+  const historyDialogRef = useRef<HTMLElement>(null);
   const onlineCount = teams.filter((team) => team.online).length;
   const totalTrades = teams.reduce(
     (sum, team) =>
@@ -104,19 +118,116 @@ export function StaffDashboard({
     0,
   );
   const totalAssets = teams.reduce((sum, team) => sum + team.totalAsset, 0);
-  const recentActivity = useMemo(
+  const activityHistory = useMemo<StaffTrade[]>(
     () =>
       teams
         .flatMap((team) =>
-          team.trades
-            .filter((trade) => !trade.canceled_at)
-            .map((trade) => ({ ...trade, teamId: team.teamId })),
+          team.trades.map((trade) => ({ ...trade, teamId: team.teamId })),
         )
-        .sort((left, right) => right.id - left.id)
-        .slice(0, 8),
+        .sort((left, right) => right.id - left.id),
     [teams],
   );
+  const recentActivity = activityHistory.slice(0, 8);
+  const recentAuditLogs = auditLogs.slice(0, 8);
   const nextEvent = round < LAST_ROUND ? rounds[round + 1] : null;
+
+  useEffect(() => {
+    if (!historyView) return;
+
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialog = historyDialogRef.current;
+    dialog?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setHistoryView(null);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (
+        event.shiftKey &&
+        (document.activeElement === dialog || document.activeElement === first)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [historyView]);
+
+  const canCancelTrade = (trade: StaffTrade) => {
+    if (trade.canceled_at) return false;
+    const team = teams.find((item) => item.teamId === trade.teamId);
+    if (!team) return false;
+    return trade.action === "buy"
+      ? (team.holdings[trade.ticker] ?? 0) >= trade.quantity
+      : team.cash >= trade.quantity * trade.price;
+  };
+
+  const renderTrade = (trade: StaffTrade, fullHistory = false) => {
+    const canCancel = canCancelTrade(trade);
+    return (
+      <article
+        className={trade.canceled_at ? "is-canceled" : undefined}
+        key={trade.id}
+      >
+        <span className={trade.action}>
+          {trade.action === "buy" ? "매수" : "매도"}
+        </span>
+        <p>
+          <strong>
+            {trade.teamId}조 · {trade.ticker}
+          </strong>
+          <small>
+            R{trade.round} · {trade.quantity}주 × {money.format(trade.price)} BE
+            {fullHistory && trade.created_at
+              ? ` · ${auditTimestamp(trade.created_at)}`
+              : ""}
+          </small>
+        </p>
+        <em>{money.format(trade.quantity * trade.price)} BE</em>
+        <button
+          className="activity-cancel-button"
+          disabled={!canCancel || cancelTradeBusy === trade.id}
+          onClick={() => onCancelTrade(trade)}
+        >
+          {cancelTradeBusy === trade.id
+            ? "처리 중"
+            : trade.canceled_at
+              ? "취소됨"
+              : canCancel
+                ? "취소"
+                : "불가"}
+        </button>
+      </article>
+    );
+  };
   const updateHintCoins = async (teamId: number, hintCoins: number) => {
     setHintCoinBusy(teamId);
     try {
@@ -161,7 +272,7 @@ export function StaffDashboard({
   const reset = async () => {
     if (
       !window.confirm(
-        "게임을 초기화할까요? 거래 내역·보유 주식이 삭제되고 시드머니는 기본값으로 돌아갑니다. 마지막으로 저장한 주가 시나리오는 유지됩니다.",
+        "게임을 초기화할까요? 거래 내역·보유 주식·운영 감사 로그가 삭제되고 시드머니는 기본값으로 돌아갑니다. 마지막으로 저장한 주가 시나리오는 유지됩니다.",
       )
     )
       return;
@@ -172,6 +283,7 @@ export function StaffDashboard({
       if (!response.ok)
         throw new Error(data.error ?? "게임을 초기화하지 못했습니다.");
       setDetailTeam(null);
+      setHistoryView(null);
       await refresh();
     } catch (caught) {
       window.alert(
@@ -403,7 +515,6 @@ export function StaffDashboard({
                   : `R${round + 1} 공개 및 진행`}
                 <span>→</span>
               </button>
-              <RoundProgress round={round} />
             </section>
             <section className="panel admin-activity-panel">
               <div className="admin-panel-heading">
@@ -411,47 +522,24 @@ export function StaffDashboard({
                   <span className="eyebrow">거래 관리</span>
                   <h2>최근 체결 · 취소 관리</h2>
                 </div>
-                <span>{recentActivity.length}건 표시</span>
+                <div className="admin-panel-heading-actions">
+                  <span>{activityHistory.length}건</span>
+                  <button
+                    className="admin-panel-view-all"
+                    type="button"
+                    onClick={() => setHistoryView("trades")}
+                  >
+                    전체 보기
+                  </button>
+                </div>
               </div>
-              <div className="admin-activity-list">
-                {recentActivity.map((trade) => {
-                  const team = teams.find(
-                    (item) => item.teamId === trade.teamId,
-                  );
-                  const canCancel =
-                    Boolean(team) &&
-                    (trade.action === "buy"
-                      ? (team?.holdings[trade.ticker] ?? 0) >= trade.quantity
-                      : (team?.cash ?? 0) >= trade.quantity * trade.price);
-                  return (
-                    <article key={trade.id}>
-                      <span className={trade.action}>
-                        {trade.action === "buy" ? "매수" : "매도"}
-                      </span>
-                      <p>
-                        <strong>
-                          {trade.teamId}조 · {trade.ticker}
-                        </strong>
-                        <small>
-                          R{trade.round} · {trade.quantity}주 ×{" "}
-                          {money.format(trade.price)} BE
-                        </small>
-                      </p>
-                      <em>{money.format(trade.quantity * trade.price)} BE</em>
-                      <button
-                        className="activity-cancel-button"
-                        disabled={!canCancel || cancelTradeBusy === trade.id}
-                        onClick={() => onCancelTrade(trade)}
-                      >
-                        {cancelTradeBusy === trade.id
-                          ? "처리 중"
-                          : canCancel
-                            ? "취소"
-                            : "불가"}
-                      </button>
-                    </article>
-                  );
-                })}
+              <div
+                className="admin-activity-list admin-history-preview"
+                role="region"
+                aria-label="최근 체결 및 취소 관리 미리보기"
+                tabIndex={0}
+              >
+                {recentActivity.map((trade) => renderTrade(trade))}
                 {recentActivity.length === 0 && (
                   <p className="admin-empty">아직 체결된 거래가 없습니다.</p>
                 )}
@@ -463,22 +551,30 @@ export function StaffDashboard({
                   <span className="eyebrow">관리 기록</span>
                   <h2>운영 감사 로그</h2>
                 </div>
-                <span>최근 {auditLogs.length}건</span>
+                <div className="admin-panel-heading-actions">
+                  <span>{auditLogs.length}건</span>
+                  <button
+                    className="admin-panel-view-all"
+                    type="button"
+                    onClick={() => setHistoryView("audit")}
+                  >
+                    전체 보기
+                  </button>
+                </div>
               </div>
-              <div className="admin-audit-list">
-                {auditLogs.map((log) => (
+              <div
+                className="admin-audit-list admin-history-preview"
+                role="region"
+                aria-label="운영 감사 로그 미리보기"
+                tabIndex={0}
+              >
+                {recentAuditLogs.map((log) => (
                   <article key={log.id}>
                     <i>{log.id}</i>
                     <p>
                       <strong>{log.summary}</strong>
                       <small>
-                        {log.actor} ·{" "}
-                        {new Date(`${log.createdAt}Z`).toLocaleString("ko-KR", {
-                          month: "2-digit",
-                          day: "2-digit",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {log.actor} · {auditTimestamp(log.createdAt)}
                       </small>
                     </p>
                     <span>{log.action.replaceAll("_", " ")}</span>
@@ -494,6 +590,86 @@ export function StaffDashboard({
           </aside>
         </section>
       </section>
+      {historyView && (
+        <div
+          className="admin-history-modal"
+          role="presentation"
+          onMouseDown={() => setHistoryView(null)}
+        >
+          <section
+            ref={historyDialogRef}
+            className="admin-history-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-history-heading"
+            aria-describedby="admin-history-description"
+            tabIndex={-1}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              className="admin-history-close"
+              type="button"
+              aria-label="전체 내역 닫기"
+              onClick={() => setHistoryView(null)}
+            >
+              ×
+            </button>
+            <header className="admin-history-heading">
+              <span className="eyebrow">
+                {historyView === "trades" ? "거래 관리" : "관리 기록"}
+              </span>
+              <h2 id="admin-history-heading">
+                {historyView === "trades"
+                  ? "전체 체결 · 취소 내역"
+                  : "전체 운영 감사 로그"}
+              </h2>
+              <p id="admin-history-description">
+                {historyView === "trades"
+                  ? `최신 거래순으로 ${activityHistory.length}건을 표시합니다.`
+                  : `최신 기록순으로 ${auditLogs.length}건을 표시합니다.`}
+              </p>
+            </header>
+            {historyView === "trades" ? (
+              <div
+                className="admin-activity-list admin-history-list"
+                role="region"
+                aria-label="전체 체결 및 취소 내역"
+                tabIndex={0}
+              >
+                {activityHistory.map((trade) => renderTrade(trade, true))}
+                {activityHistory.length === 0 && (
+                  <p className="admin-empty">아직 체결된 거래가 없습니다.</p>
+                )}
+              </div>
+            ) : (
+              <div
+                className="admin-audit-list admin-history-list"
+                role="region"
+                aria-label="전체 운영 감사 로그"
+                tabIndex={0}
+              >
+                {auditLogs.map((log) => (
+                  <article key={log.id}>
+                    <i>{log.id}</i>
+                    <p>
+                      <strong>{log.summary}</strong>
+                      <small>
+                        {log.actor} · {auditTimestamp(log.createdAt)}
+                      </small>
+                    </p>
+                    <span>{log.action.replaceAll("_", " ")}</span>
+                  </article>
+                ))}
+                {auditLogs.length === 0 && (
+                  <p className="admin-empty">
+                    아직 기록된 관리자 조작이 없습니다.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   );
 }

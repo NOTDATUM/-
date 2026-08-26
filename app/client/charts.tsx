@@ -131,12 +131,16 @@ export function AllStocksChart({
   compact = false,
   selectedTicker = null,
   tone = "dark",
+  lineStyle = "patterned",
+  showScaleBadge = true,
 }: {
   round: number;
   prices: PriceSchedule;
   compact?: boolean;
   selectedTicker?: string | null;
   tone?: "light" | "dark" | "projector" | "projector-light";
+  lineStyle?: "patterned" | "solid";
+  showScaleBadge?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const descriptionId = useId();
@@ -187,7 +191,7 @@ export function AllStocksChart({
           plotHeight;
 
       if (!compact) {
-        context.font = `${projector ? 750 : 650} ${chartLabelSize}px "Apple SD Gothic Neo", Arial, sans-serif`;
+        context.font = `${projector ? 750 : 650} ${chartLabelSize}px "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif`;
         context.fillStyle =
           projectorLight
             ? "#26364b"
@@ -310,7 +314,7 @@ export function AllStocksChart({
         context.lineJoin = "round";
         context.lineCap = "round";
         context.setLineDash(
-          selectedTicker
+          selectedTicker || lineStyle === "solid"
             ? []
             : lineDashPatterns[stockIndex % lineDashPatterns.length],
         );
@@ -338,7 +342,8 @@ export function AllStocksChart({
         context.restore();
         if (!compact && selectedTicker === stock.ticker) {
           context.fillStyle = seriesColor;
-          context.font = "700 12px Arial";
+          context.font =
+            '700 12px "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif';
           context.textAlign = "right";
           context.fillText(
             `${money.format(Math.round(last.value))} BE`,
@@ -348,7 +353,7 @@ export function AllStocksChart({
         }
       });
     },
-    [round, compact, prices, selectedTicker, tone, visibleStocks],
+    [round, compact, lineStyle, prices, selectedTicker, tone, visibleStocks],
   );
 
   useEffect(() => {
@@ -371,6 +376,7 @@ export function AllStocksChart({
     const startedAt = performance.now();
     let animationFrame = 0;
     let resizeFrame = 0;
+    let disposed = false;
 
     previousRoundRef.current = round;
     const animate = (now: number) => {
@@ -394,7 +400,12 @@ export function AllStocksChart({
       );
     };
     window.addEventListener("resize", resize);
+    void document.fonts?.ready.then(() => {
+      if (!disposed)
+        draw(canvas, viewportRef.current ?? targetViewport, 1);
+    });
     return () => {
+      disposed = true;
       cancelAnimationFrame(animationFrame);
       cancelAnimationFrame(resizeFrame);
       window.removeEventListener("resize", resize);
@@ -418,7 +429,7 @@ export function AllStocksChart({
           })
           .join(", ")}
       </p>
-      {!compact && (
+      {!compact && showScaleBadge && (
         <span
           key={`${round}-${selectedTicker ?? "all"}`}
           className="chart-scale-pill"

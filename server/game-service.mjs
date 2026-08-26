@@ -301,7 +301,9 @@ export function createGameService({
 
   function resetGame() {
     transaction(() => {
-      db.exec("DELETE FROM holdings; DELETE FROM trades;");
+      db.exec(
+        "DELETE FROM holdings; DELETE FROM trades; DELETE FROM admin_audit_logs;",
+      );
       db.prepare(
         "UPDATE teams SET seed_money = ?, cash = ?, hint_coins = 0",
       ).run(
@@ -311,11 +313,9 @@ export function createGameService({
       db.prepare(
         "UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
       ).run();
-      db.prepare("DELETE FROM sqlite_sequence WHERE name = 'trades'").run();
-      recordAdminAction(
-        "game_reset",
-        "게임 상태를 초기화했습니다. 저장된 주가 시나리오는 유지됩니다.",
-      );
+      db.prepare(
+        "DELETE FROM sqlite_sequence WHERE name IN ('trades', 'admin_audit_logs')",
+      ).run();
     });
   }
 

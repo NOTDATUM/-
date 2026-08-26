@@ -188,8 +188,10 @@ export function TeamDashboard({
                     ? `${stock.ticker} · ${stock.field}`
                     : `전체 시장 · ${stocks.length}개 종목`}
                 </span>
-                <div className="client-market-title">
-                  <h1>{chartMode === "single" ? stock.name : "시장 흐름"}</h1>
+                <div
+                  className={`client-market-title ${chartMode === "all" ? "all-mode" : ""}`}
+                >
+                  {chartMode === "single" && <h1>{stock.name}</h1>}
                   {chartMode === "single" && (
                     <strong>
                       {price === null ? "상장 전" : `${money.format(price)} BE`}
@@ -232,6 +234,8 @@ export function TeamDashboard({
               prices={prices}
               selectedTicker={selectedChartTicker}
               tone={clientTheme}
+              lineStyle="solid"
+              showScaleBadge={false}
             />
             <div className="client-stock-strip" aria-label="거래 종목 선택">
               {stocks.map((item) => {
@@ -495,44 +499,22 @@ export function TeamDashboard({
             </div>
           </section>
 
-          <section className="client-recent-card">
-            <header>
-              <strong>최근 거래</strong>
-              <div>
-                <span>{team.trades.length}건</span>
-                <button
-                  className="client-card-link"
-                  onClick={() => setDetailView("trades")}
-                >
-                  전체보기
-                </button>
-              </div>
-            </header>
-            <div>
-              {team.trades.slice(0, 3).map((tradeItem) => (
-                <article key={tradeItem.id}>
-                  <span className={tradeItem.action}>
-                    {tradeItem.action === "buy" ? "매수" : "매도"}
-                  </span>
-                  <p>
-                    <strong>{tradeItem.ticker}</strong>
-                    <small>
-                      {tradeItem.quantity}주 · {money.format(tradeItem.price)}{" "}
-                      BE
-                    </small>
-                  </p>
-                  <em>
-                    {tradeItem.action === "buy" ? "−" : "+"}
-                    {money.format(tradeItem.quantity * tradeItem.price)}
-                  </em>
-                </article>
-              ))}
-              {team.trades.length === 0 && (
-                <small className="client-empty">
-                  아직 거래 내역이 없습니다
-                </small>
-              )}
-            </div>
+          <section
+            className="client-recent-card client-recent-summary"
+            aria-labelledby="client-recent-heading"
+          >
+            <h2 className="sr-only" id="client-recent-heading">
+              최근 거래
+            </h2>
+            <strong aria-label={`최근 거래 ${team.trades.length}건`}>
+              {team.trades.length}<small>건</small>
+            </strong>
+            <button
+              className="client-card-link"
+              onClick={() => setDetailView("trades")}
+            >
+              전체보기
+            </button>
           </section>
         </aside>
       </section>

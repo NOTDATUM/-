@@ -150,6 +150,55 @@ test("migrates an existing game database for cancellations and audit logs", asyn
   }
 });
 
+test("game reset clears audit logs while preserving the saved price scenario", async () => {
+  const dataDir = await mkdtemp(resolve(tmpdir(), "be-reset-server-"));
+  const port = 45000 + Math.floor(Math.random() * 1000);
+  let running;
+  try {
+    running = await startServer(port, dataDir);
+    const staff = await login(running.baseUrl, "staff", staffPassword);
+
+    const priceUpdate = await api(running.baseUrl, "/api/game/prices", {
+      method: "POST",
+      token: staff.token,
+      body: { updates: [{ ticker: "IMMU", round: 2, price: 777 }] },
+    });
+    assert.deepEqual(await priceUpdate.json(), { ok: true, updated: 1 });
+
+    const beforeReset = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
+    const beforeResetData = await beforeReset.json();
+    assert.ok(beforeResetData.auditLogs.length > 0);
+    assert.equal(beforeResetData.market.prices.IMMU[2], 777);
+
+    const reset = await api(running.baseUrl, "/api/game/reset", {
+      method: "POST",
+      token: staff.token,
+    });
+    assert.deepEqual(await reset.json(), { ok: true });
+
+    const afterReset = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
+    const afterResetData = await afterReset.json();
+    assert.deepEqual(afterResetData.auditLogs, []);
+    assert.equal(afterResetData.market.prices.IMMU[2], 777);
+
+    await stopServer(running.child);
+    running = await startServer(port, dataDir);
+    const afterRestart = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
+    const afterRestartData = await afterRestart.json();
+    assert.deepEqual(afterRestartData.auditLogs, []);
+    assert.equal(afterRestartData.market.prices.IMMU[2], 777);
+  } finally {
+    if (running) await stopServer(running.child).catch(() => undefined);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("shares staff, view, and team state through the public game server and keeps it after restart", async () => {
   const dataDir = await mkdtemp(resolve(tmpdir(), "be-remote-server-"));
   const port = 43000 + Math.floor(Math.random() * 1000);
@@ -540,7 +589,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.deepEqual(resetData.teams[0].holdings, {});
     assert.equal(resetData.teams[0].trades.length, 0);
     assert.equal(resetData.market.prices.IMMU[2], 777);
-    assert.ok(resetData.auditLogs.some((log) => log.action === "game_reset"));
+    assert.deepEqual(resetData.auditLogs, []);
 
     await stopServer(running.child);
     running = await startServer(port, dataDir);
@@ -552,6 +601,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(persistedResetData.teams.length, 5);
     assert.equal(persistedResetData.teams[0].trades.length, 0);
     assert.equal(persistedResetData.market.prices.IMMU[2], 777);
+    assert.deepEqual(persistedResetData.auditLogs, []);
   } finally {
     if (running) await stopServer(running.child).catch(() => undefined);
     await rm(dataDir, { recursive: true, force: true });

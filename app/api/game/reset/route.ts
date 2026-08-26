@@ -1,6 +1,5 @@
 import { ensureGameSchema, getGameDb } from "../../../../db/game";
 import { readSession } from "../../../lib/session";
-import { adminAuditStatement } from "../../../lib/admin-audit";
 
 const DEFAULT_SEED_MONEY = 1000;
 
@@ -16,6 +15,7 @@ export async function POST() {
   const statements = [
     db.prepare("DELETE FROM holdings"),
     db.prepare("DELETE FROM trades"),
+    db.prepare("DELETE FROM admin_audit_logs"),
     db
       .prepare("UPDATE teams SET seed_money = ?, cash = ?, hint_coins = 0")
       .bind(DEFAULT_SEED_MONEY, DEFAULT_SEED_MONEY),
@@ -23,12 +23,6 @@ export async function POST() {
       "UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
     ),
   ];
-  statements.push(
-    adminAuditStatement(
-      "game_reset",
-      "게임 상태를 초기화했습니다. 저장된 주가 시나리오는 유지됩니다.",
-    ),
-  );
   await db.batch(statements);
   return Response.json({ ok: true });
 }

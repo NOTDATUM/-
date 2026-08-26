@@ -109,6 +109,7 @@ export function ViewDashboard({
       window.localStorage.setItem(VIEW_THEME_KEY, next);
       return next;
     });
+    setMenuOpen(false);
   };
   return (
     <main
@@ -207,7 +208,7 @@ export function ViewDashboard({
           <strong>{round}</strong>
           <small>/ {LAST_ROUND}</small>
         </div>
-        <div className="view-event-copy">
+        <div className="view-event-copy view-event-copy-compact">
           <span className="eyebrow">
             {snapshot.game.started
               ? "현재 라운드 주요 공지"
@@ -243,6 +244,8 @@ export function ViewDashboard({
             round={round}
             prices={prices}
             tone={viewTheme === "light" ? "projector-light" : "projector"}
+            lineStyle="solid"
+            showScaleBadge={false}
           />
           <div className="view-chart-legend" aria-label="종목 색상 범례">
             {stocks.map((stock) => (
@@ -255,12 +258,11 @@ export function ViewDashboard({
           </div>
         </section>
         <aside className="view-ranking-card">
-          <header>
-            <div>
+          <header className="view-ranking-heading">
+            <div className="view-ranking-title">
               <span className="eyebrow">참가 조 현황</span>
               <h2>조별 누적 수익률</h2>
             </div>
-            <span>실제 자산은 공개하지 않음 · {teams.length}개 조</span>
           </header>
           <div
             className="view-ranking-grid"
@@ -287,7 +289,7 @@ export function ViewDashboard({
                     <b
                       aria-hidden="true"
                       style={{
-                        width: `${Math.max(3, (Math.abs(team.returnRate) / maxReturn) * 100)}%`,
+                        width: `${team.returnRate === 0 ? 0 : Math.max(3, (Math.abs(team.returnRate) / maxReturn) * 100)}%`,
                       }}
                       className={team.returnRate >= 0 ? "positive" : "negative"}
                     />

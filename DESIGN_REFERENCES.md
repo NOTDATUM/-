@@ -102,3 +102,8 @@
 - 데스크톱을 단순 축소하지 않고, 작은 화면에서는 콘텐츠 순서를 재배치하되 기능을 제거하지 않는다.
 - 애니메이션은 차트 축 변화, 메뉴 열림, 저장 상태처럼 변화의 원인을 이해시키는 경우에만 짧게 사용한다.
 - 외부 사례는 정보 구조와 접근성 원칙만 참고하며 특정 브랜드의 레이아웃, 문구, 색상, 코드를 복제하지 않는다.
+
+## 타이포그래피 보완
+
+- [Pretendard 공식 웹폰트 문서](https://github.com/orioncactus/pretendard/blob/main/packages/pretendard/docs/en/README.md)의 Variable Dynamic Subset을 사용한다. 한국어·영문·숫자를 한 화면에서 다루는 크로스플랫폼 UI에 적합하고, 필요한 글리프 조각만 불러오는 방식이라 전체 한글 폰트를 한 번에 내려받는 것보다 가볍다.
+- [GOV.UK Type Scale](https://design-system.service.gov.uk/styles/type-scale/)의 일관된 타입 스케일과 수직 리듬 원칙을 유지한다. 스태프 화면은 밀도를 확보하되 11px 미만의 핵심 조작 문구를 만들지 않고, View 화면은 원거리 판독을 위해 제목·수익률 숫자의 크기와 대비를 우선한다.
