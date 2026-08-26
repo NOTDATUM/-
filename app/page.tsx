@@ -147,7 +147,12 @@ export default function Home() {
 
   if (session === undefined)
     return (
-      <main className="loading-shell">
+      <main
+        className="loading-shell"
+        id="main-content"
+        aria-busy="true"
+        aria-live="polite"
+      >
         <Brand />
         <div className="loading-line">
           <span />
@@ -159,12 +164,21 @@ export default function Home() {
     return (
       <>
         <LoginScreen onLogin={login} />
-        {error && <div className="toast error">{error}</div>}
+        {error && (
+          <div className="toast error" role="alert">
+            {error}
+          </div>
+        )}
       </>
     );
   if (!snapshot)
     return (
-      <main className="loading-shell">
+      <main
+        className="loading-shell"
+        id="main-content"
+        aria-busy="true"
+        aria-live="polite"
+      >
         <Brand />
         <div className="loading-line">
           <span />
@@ -186,7 +200,7 @@ export default function Home() {
   if (!snapshot.game.started) {
     if (session.role === "staff")
       return (
-        <main className="staff-shell">
+        <main className="staff-shell" id="main-content" tabIndex={-1}>
           <Topbar
             session={session}
             round={0}

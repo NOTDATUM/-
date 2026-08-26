@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LAST_ROUND, rounds, stocks } from "../game-data";
 import { AllStocksChart } from "./charts";
 import { Brand } from "./common";
@@ -26,6 +26,10 @@ export function ViewDashboard({
   const prices = snapshot.market.prices;
   const [fullscreen, setFullscreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
+  const menuCloseRef = useRef<HTMLButtonElement>(null);
+  const menuWasOpenRef = useRef(false);
   const [viewTheme, setViewTheme] = useState<ClientTheme>(() => {
     if (typeof window === "undefined") return "dark";
     const savedTheme = window.localStorage.getItem(VIEW_THEME_KEY);
@@ -36,7 +40,9 @@ export function ViewDashboard({
   useEffect(() => {
     const update = () => setFullscreen(Boolean(document.fullscreenElement));
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+      if (event.key === "Escape") {
+        setMenuOpen((current) => (current ? false : current));
+      }
     };
     document.addEventListener("fullscreenchange", update);
     document.addEventListener("keydown", closeOnEscape);
@@ -46,9 +52,42 @@ export function ViewDashboard({
     };
   }, []);
   useEffect(() => {
+    let animationFrame = 0;
+    if (menuOpen) {
+      menuWasOpenRef.current = true;
+      animationFrame = window.requestAnimationFrame(() => {
+        menuCloseRef.current?.focus();
+      });
+    } else if (menuWasOpenRef.current) {
+      menuWasOpenRef.current = false;
+      animationFrame = window.requestAnimationFrame(() => {
+        menuTriggerRef.current?.focus();
+      });
+    }
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [menuOpen]);
+  useEffect(() => {
     if (!menuOpen) return;
-    const timer = window.setTimeout(() => setMenuOpen(false), 7000);
-    return () => window.clearTimeout(timer);
+    const handleMenuTab = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const menu = menuRef.current;
+      if (!menu) return;
+      const focusable = Array.from(
+        menu.querySelectorAll<HTMLButtonElement>('button:not([disabled])'),
+      );
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleMenuTab);
+    return () => document.removeEventListener("keydown", handleMenuTab);
   }, [menuOpen]);
   const standings = useMemo(
     () => [...teams].sort((left, right) => right.returnRate - left.returnRate),
@@ -73,27 +112,37 @@ export function ViewDashboard({
   };
   return (
     <main
+      id="main-content"
+      tabIndex={-1}
       className={`view-shell theme-${viewTheme} ${teams.length > 16 ? "dense" : ""}`}
     >
-      {!menuOpen && (
-        <button
-          className="view-menu-trigger"
-          aria-expanded="false"
-          aria-controls="view-control-bar"
-          onClick={() => setMenuOpen(true)}
-        >
-          <span>☰</span> 화면 메뉴
-        </button>
-      )}
+      <button
+        ref={menuTriggerRef}
+        type="button"
+        className="view-menu-trigger"
+        aria-expanded={menuOpen}
+        aria-controls="view-control-bar"
+        aria-label={menuOpen ? "화면 메뉴 닫기" : "화면 메뉴 열기"}
+        onClick={() => setMenuOpen((current) => !current)}
+      >
+        <span aria-hidden="true">☰</span> 화면 메뉴
+      </button>
       {menuOpen && (
-        <button
+        <div
           className="view-menu-backdrop"
-          aria-label="화면 메뉴 닫기"
+          aria-hidden="true"
           onClick={() => setMenuOpen(false)}
         />
       )}
       {menuOpen && (
-        <header className="view-control-bar" id="view-control-bar">
+        <header
+          ref={menuRef}
+          className="view-control-bar"
+          id="view-control-bar"
+          role="dialog"
+          aria-modal="true"
+          aria-label="공용 화면 설정"
+        >
           <Brand compact />
           <div className="view-market-status">
             <i
@@ -107,10 +156,10 @@ export function ViewDashboard({
             />
             <span>
               {!snapshot.game.started
-                ? "GAME READY"
+                ? "게임 준비"
                 : round >= LAST_ROUND
-                  ? "MARKET CLOSED"
-                  : "LIVE MARKET"}
+                  ? "시장 종료"
+                  : "시장 진행 중"}
             </span>
             <strong>
               {snapshot.game.started ? rounds[round].label : "시작 대기"}
@@ -118,6 +167,7 @@ export function ViewDashboard({
           </div>
           <div className="view-screen-actions">
             <button
+              type="button"
               className="view-theme-toggle"
               aria-label={`${viewTheme === "dark" ? "화이트" : "블랙"} 모드로 전환`}
               aria-pressed={viewTheme === "light"}
@@ -126,11 +176,20 @@ export function ViewDashboard({
               <span aria-hidden="true">{viewTheme === "dark" ? "☀" : "☾"}</span>
               {viewTheme === "dark" ? "화이트" : "블랙"}
             </button>
-            <button className="view-primary-action" onClick={toggleFullscreen}>
+            <button
+              type="button"
+              className="view-primary-action"
+              aria-pressed={fullscreen}
+              onClick={toggleFullscreen}
+            >
               {fullscreen ? "전체화면 종료" : "전체화면"}
             </button>
-            <button onClick={onLogout}>로그아웃</button>
+            <button type="button" onClick={onLogout}>
+              로그아웃
+            </button>
             <button
+              ref={menuCloseRef}
+              type="button"
               aria-label="화면 메뉴 닫기"
               onClick={() => setMenuOpen(false)}
             >
@@ -144,15 +203,15 @@ export function ViewDashboard({
         key={`${snapshot.game.started}-${round}`}
       >
         <div className="view-round-mark">
-          <span>{round === 0 ? "OPEN" : "ROUND"}</span>
+          <span>{round === 0 ? "기준가" : "라운드"}</span>
           <strong>{round}</strong>
           <small>/ {LAST_ROUND}</small>
         </div>
         <div className="view-event-copy">
           <span className="eyebrow">
             {snapshot.game.started
-              ? "CURRENT MARKET EVENT"
-              : "MARKET PREPARATION"}
+              ? "현재 라운드 주요 공지"
+              : "게임 시작 전 안내"}
           </span>
           <h1>
             {snapshot.game.started
@@ -175,10 +234,10 @@ export function ViewDashboard({
         <section className="view-market-card">
           <header>
             <div>
-              <span className="eyebrow">LIVE MARKET OVERVIEW</span>
-              <h2>전체 시장 · 실제 주가</h2>
+              <span className="eyebrow">전체 종목 현황</span>
+              <h2>전체 종목 주가 흐름</h2>
             </div>
-            <span>2초마다 자동 갱신</span>
+            <span>2초마다 서버 상태 갱신</span>
           </header>
           <AllStocksChart
             round={round}
@@ -198,19 +257,35 @@ export function ViewDashboard({
         <aside className="view-ranking-card">
           <header>
             <div>
-              <span className="eyebrow">TEAM PERFORMANCE</span>
-              <h2>조별 수익률</h2>
+              <span className="eyebrow">참가 조 현황</span>
+              <h2>조별 누적 수익률</h2>
             </div>
-            <span>자산 비공개 · {teams.length}개 조</span>
+            <span>실제 자산은 공개하지 않음 · {teams.length}개 조</span>
           </header>
-          <div className="view-ranking-grid">
+          <div
+            className="view-ranking-grid"
+            role="list"
+            aria-label="조별 수익률 순위"
+          >
             {standings.map((team, index) => (
-              <article key={team.teamId}>
-                <i>{index + 1}</i>
+              <article
+                key={team.teamId}
+                role="listitem"
+                aria-label={`${index + 1}위, ${team.teamId}조, 누적 수익률 ${team.returnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.returnRate).toFixed(1)}퍼센트`}
+              >
+                <i aria-hidden="true">{index + 1}</i>
                 <div>
                   <strong>{team.teamId}조</strong>
-                  <span>
+                  <span
+                    role="meter"
+                    aria-label={`${team.teamId}조 수익률 크기`}
+                    aria-valuemin={0}
+                    aria-valuemax={maxReturn}
+                    aria-valuenow={Math.abs(team.returnRate)}
+                    aria-valuetext={`누적 수익률 ${team.returnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.returnRate).toFixed(1)}퍼센트`}
+                  >
                     <b
+                      aria-hidden="true"
                       style={{
                         width: `${Math.max(3, (Math.abs(team.returnRate) / maxReturn) * 100)}%`,
                       }}
@@ -218,7 +293,10 @@ export function ViewDashboard({
                     />
                   </span>
                 </div>
-                <em className={team.returnRate >= 0 ? "up" : "down"}>
+                <em
+                  className={team.returnRate >= 0 ? "up" : "down"}
+                  aria-hidden="true"
+                >
                   {team.returnRate >= 0 ? "+" : ""}
                   {team.returnRate.toFixed(1)}%
                 </em>
@@ -226,8 +304,8 @@ export function ViewDashboard({
             ))}
           </div>
           <section className="view-reference">
-            <span>MARKET NOTE</span>
-            <strong>이번 라운드 참고 포인트</strong>
+            <span>진행 참고</span>
+            <strong>이번 라운드 참고 정보</strong>
             <p>{brief.note}</p>
           </section>
         </aside>

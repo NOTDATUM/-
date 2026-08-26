@@ -29,7 +29,7 @@ export function StaffTeamDetail({
       </button>
       <div className="detail-heading">
         <div>
-          <span className="eyebrow">TEAM {team.teamId} ACTIVITY</span>
+          <span className="eyebrow">참가 조 상세 관리</span>
           <h1>{team.teamId}조 거래 현황</h1>
           <p>
             보유 주식과 라운드별 매수·매도 내역을 확인하고 잘못된 체결을 취소할
@@ -69,18 +69,26 @@ export function StaffTeamDetail({
         <section className="panel table-panel">
           <div className="panel-title">
             <div>
-              <span className="eyebrow">POSITIONS</span>
+              <span className="eyebrow">현재 보유 현황</span>
               <h2>보유 주식</h2>
             </div>
           </div>
-          <div className="data-table">
+          <div
+            className="data-table"
+            role="region"
+            aria-label={`${team.teamId}조 보유 주식`}
+            tabIndex={0}
+          >
             <table>
+              <caption className="sr-only">
+                {team.teamId}조의 현재 보유 주식과 평가액
+              </caption>
               <thead>
                 <tr>
-                  <th>종목</th>
-                  <th>보유 수량</th>
-                  <th>현재가</th>
-                  <th>평가액</th>
+                  <th scope="col">종목</th>
+                  <th scope="col">보유 수량</th>
+                  <th scope="col">현재가</th>
+                  <th scope="col">평가액</th>
                 </tr>
               </thead>
               <tbody>
@@ -122,7 +130,7 @@ export function StaffTeamDetail({
         <section className="panel table-panel trade-history">
           <div className="panel-title">
             <div>
-              <span className="eyebrow">ORDER HISTORY</span>
+              <span className="eyebrow">체결·취소 기록</span>
               <h2>전체 매수·매도 내역</h2>
             </div>
             <span>
@@ -130,17 +138,25 @@ export function StaffTeamDetail({
               {canceledCount ? ` · ${canceledCount}건 취소` : ""}
             </span>
           </div>
-          <div className="data-table">
+          <div
+            className="data-table"
+            role="region"
+            aria-label={`${team.teamId}조 전체 거래내역`}
+            tabIndex={0}
+          >
             <table>
+              <caption className="sr-only">
+                {team.teamId}조의 라운드별 매수, 매도, 취소 내역
+              </caption>
               <thead>
                 <tr>
-                  <th>라운드</th>
-                  <th>구분</th>
-                  <th>종목</th>
-                  <th>수량</th>
-                  <th>체결가</th>
-                  <th>금액</th>
-                  <th>관리</th>
+                  <th scope="col">라운드</th>
+                  <th scope="col">구분</th>
+                  <th scope="col">종목</th>
+                  <th scope="col">수량</th>
+                  <th scope="col">체결가</th>
+                  <th scope="col">금액</th>
+                  <th scope="col">관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -159,7 +175,9 @@ export function StaffTeamDetail({
                       className={canceled ? "canceled-trade-row" : ""}
                       key={trade.id}
                     >
-                      <td>{trade.round === 0 ? "OPEN" : `${trade.round}R`}</td>
+                      <td>
+                        {trade.round === 0 ? "기준가" : `${trade.round}R`}
+                      </td>
                       <td>
                         {canceled ? (
                           <span className="trade-pill canceled">취소됨</span>

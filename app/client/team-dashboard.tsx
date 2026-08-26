@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "../api-client";
 import { getStockPrice, isStockTradable, rounds, stocks } from "../game-data";
 import { AllStocksChart } from "./charts";
@@ -44,6 +44,8 @@ export function TeamDashboard({
   const [quantity, setQuantity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const profileDialogRef = useRef<HTMLElement>(null);
+  const profileTriggerRef = useRef<HTMLButtonElement>(null);
   const stock = stocks.find((item) => item.ticker === ticker) ?? stocks[0];
   const price = getStockPrice(ticker, round, prices);
   const prior = round > 0 ? getStockPrice(ticker, round - 1, prices) : null;
@@ -68,6 +70,46 @@ export function TeamDashboard({
     const timer = setTimeout(() => setToast(""), 2400);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const dialog = profileDialogRef.current;
+    const profileTrigger = profileTriggerRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialog?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setProfileOpen(false);
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (!focusable.length) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      (previouslyFocused ?? profileTrigger)?.focus();
+    };
+  }, [profileOpen]);
 
   const selectStock = (nextTicker: string) => {
     setTicker(nextTicker);
@@ -111,7 +153,11 @@ export function TeamDashboard({
   };
 
   return (
-    <main className={`app-shell toss-client theme-${clientTheme}`}>
+    <main
+      className={`app-shell toss-client theme-${clientTheme}`}
+      id="main-content"
+      tabIndex={-1}
+    >
       <Topbar
         session={snapshot.session}
         round={round}
@@ -120,6 +166,9 @@ export function TeamDashboard({
         onToggleTheme={toggleTheme}
       />
       <section className="client-dashboard">
+        <p className="sr-only" role="status" aria-live="polite">
+          현재 {rounds[round].label}, {rounds[round].theme}
+        </p>
         <div className="client-main-column">
           <section className="client-round-strip">
             <div>
@@ -137,7 +186,7 @@ export function TeamDashboard({
                 <span className="client-kicker">
                   {chartMode === "single"
                     ? `${stock.ticker} · ${stock.field}`
-                    : "전체 주식시장"}
+                    : `전체 시장 · ${stocks.length}개 종목`}
                 </span>
                 <div className="client-market-title">
                   <h1>{chartMode === "single" ? stock.name : "시장 흐름"}</h1>
@@ -197,6 +246,7 @@ export function TeamDashboard({
                     : null;
                 return (
                   <button
+                    aria-label={`${item.name} ${item.ticker}, ${itemPrice === null ? "상장 전" : `${money.format(itemPrice)} BE`}`}
                     aria-pressed={ticker === item.ticker}
                     className={ticker === item.ticker ? "active" : ""}
                     onClick={() => selectStock(item.ticker)}
@@ -234,7 +284,12 @@ export function TeamDashboard({
                   <strong>{stock.name}</strong>
                   {stock.description}
                 </p>
-                <button onClick={() => setProfileOpen(true)}>상세보기 →</button>
+                <button
+                  ref={profileTriggerRef}
+                  onClick={() => setProfileOpen(true)}
+                >
+                  기업 상세보기
+                </button>
               </div>
             )}
           </section>
@@ -325,7 +380,8 @@ export function TeamDashboard({
                 {tradable ? "거래 가능" : "거래 불가"}
               </em>
             </div>
-            <label className="client-quantity">
+            <fieldset className="client-quantity">
+              <legend className="sr-only">주문 수량</legend>
               <span>
                 주문 수량{" "}
                 <small>
@@ -345,6 +401,7 @@ export function TeamDashboard({
                   −
                 </button>
                 <input
+                  id="order-quantity"
                   aria-label="주문 수량"
                   value={orderQuantity}
                   min={minOrderQuantity}
@@ -372,7 +429,7 @@ export function TeamDashboard({
                   ＋
                 </button>
               </div>
-            </label>
+            </fieldset>
             <div className="client-quick-quantity">
               {[1, 5, 10].map((value) => (
                 <button
@@ -487,9 +544,12 @@ export function TeamDashboard({
           onMouseDown={() => setProfileOpen(false)}
         >
           <section
+            ref={profileDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
-            aria-label={`${stock.name} 기업 상세정보`}
+            aria-labelledby="stock-profile-title"
+            aria-describedby="stock-profile-description"
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button
@@ -505,13 +565,15 @@ export function TeamDashboard({
                 <small>
                   {stock.ticker} · {stock.english}
                 </small>
-                <h2>{stock.name}</h2>
+                <h2 id="stock-profile-title">{stock.name}</h2>
               </div>
               <strong>
                 {price === null ? "상장 전" : `${money.format(price)} BE`}
               </strong>
             </header>
-            <StockProfile stock={stock} />
+            <div id="stock-profile-description">
+              <StockProfile stock={stock} />
+            </div>
           </section>
         </div>
       )}
@@ -524,7 +586,11 @@ export function TeamDashboard({
           onClose={() => setDetailView(null)}
         />
       )}
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className="toast" role="status" aria-live="polite">
+          {toast}
+        </div>
+      )}
     </main>
   );
 }

@@ -53,7 +53,7 @@ function HintCoinEditor({
           {busy ? "저장 중" : "저장"}
         </button>
       </div>
-      <nav aria-label={`${teamId}조 힌트코인 빠른 차감`}>
+      <div role="group" aria-label={`${teamId}조 힌트코인 빠른 차감`}>
         {[100, 300, 500].map((amount) => (
           <button
             disabled={busy || value < amount}
@@ -63,7 +63,7 @@ function HintCoinEditor({
             −{amount}
           </button>
         ))}
-      </nav>
+      </div>
     </div>
   );
 }
@@ -188,7 +188,7 @@ export function StaffDashboard({
     : null;
   if (selected)
     return (
-      <main className="staff-shell">
+      <main className="staff-shell" id="main-content" tabIndex={-1}>
         <Topbar
           session={snapshot.session}
           round={round}
@@ -206,7 +206,11 @@ export function StaffDashboard({
       </main>
     );
   return (
-    <main className="staff-shell admin-shell">
+    <main
+      className="staff-shell admin-shell"
+      id="main-content"
+      tabIndex={-1}
+    >
       <Topbar
         session={snapshot.session}
         round={round}
@@ -216,7 +220,7 @@ export function StaffDashboard({
       <section className="admin-console">
         <header className="admin-heading">
           <div>
-            <span className="eyebrow">GAME OPERATIONS</span>
+            <span className="eyebrow">게임 운영</span>
             <h1>운영 관리 콘솔</h1>
             <p>
               게임 상태와 참가 조 접속·거래를 관리합니다. 발표용 정보는 view
@@ -267,26 +271,34 @@ export function StaffDashboard({
           <div className="panel admin-team-panel">
             <div className="admin-panel-heading">
               <div>
-                <span className="eyebrow">TEAM MANAGEMENT</span>
+                <span className="eyebrow">계정·자산 관리</span>
                 <h2>참가 조 관리</h2>
               </div>
-              <span className="admin-live-count">
+              <span className="admin-live-count" aria-live="polite">
                 <i />
-                {onlineCount} online
+                {onlineCount}개 조 온라인
               </span>
             </div>
-            <div className="admin-team-table">
+            <div
+              className="admin-team-table"
+              role="region"
+              aria-label="참가 조별 계정과 자산 관리"
+              tabIndex={0}
+            >
               <table>
+                <caption className="sr-only">
+                  참가 조별 접속 상태, 자산, 힌트코인, 거래와 계정 작업
+                </caption>
                 <thead>
                   <tr>
-                    <th>조</th>
-                    <th>접속</th>
-                    <th>총 자산</th>
-                    <th>수익률</th>
-                    <th>현금</th>
-                    <th>힌트코인</th>
-                    <th>거래</th>
-                    <th>계정 작업</th>
+                    <th scope="col">조</th>
+                    <th scope="col">접속</th>
+                    <th scope="col">총 자산</th>
+                    <th scope="col">수익률</th>
+                    <th scope="col">현금</th>
+                    <th scope="col">힌트코인</th>
+                    <th scope="col">거래</th>
+                    <th scope="col">계정 작업</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -300,7 +312,7 @@ export function StaffDashboard({
                     ).length;
                     return (
                       <tr key={team.teamId}>
-                        <td>
+                        <td data-label="조">
                           <button
                             className="admin-team-link"
                             onClick={() => setDetailTeam(team.teamId)}
@@ -308,7 +320,7 @@ export function StaffDashboard({
                             {team.teamId}조
                           </button>
                         </td>
-                        <td>
+                        <td data-label="접속">
                           <span
                             className={`admin-presence ${team.online ? "online" : "offline"}`}
                           >
@@ -316,17 +328,17 @@ export function StaffDashboard({
                             {team.online ? "온라인" : "오프라인"}
                           </span>
                         </td>
-                        <td>
+                        <td data-label="총 자산">
                           <strong>{money.format(team.totalAsset)} BE</strong>
                         </td>
-                        <td>
+                        <td data-label="수익률">
                           <span className={returnRate >= 0 ? "up" : "down"}>
                             {returnRate >= 0 ? "+" : ""}
                             {returnRate.toFixed(1)}%
                           </span>
                         </td>
-                        <td>{money.format(team.cash)} BE</td>
-                        <td>
+                        <td data-label="현금">{money.format(team.cash)} BE</td>
+                        <td data-label="힌트코인">
                           <HintCoinEditor
                             key={`${team.teamId}:${team.hintCoins ?? 0}`}
                             teamId={team.teamId}
@@ -335,8 +347,8 @@ export function StaffDashboard({
                             onUpdate={updateHintCoins}
                           />
                         </td>
-                        <td>{activeTrades}건</td>
-                        <td>
+                        <td data-label="거래">{activeTrades}건</td>
+                        <td data-label="계정 작업">
                           <div className="admin-row-actions">
                             <button onClick={() => setDetailTeam(team.teamId)}>
                               상세
@@ -363,7 +375,7 @@ export function StaffDashboard({
             <section className="panel admin-round-panel">
               <div className="admin-panel-heading">
                 <div>
-                  <span className="eyebrow">ROUND CONTROL</span>
+                  <span className="eyebrow">진행 관리</span>
                   <h2>라운드 제어</h2>
                 </div>
                 <strong>R{round}</strong>
@@ -396,7 +408,7 @@ export function StaffDashboard({
             <section className="panel admin-activity-panel">
               <div className="admin-panel-heading">
                 <div>
-                  <span className="eyebrow">RECENT ACTIVITY</span>
+                  <span className="eyebrow">거래 관리</span>
                   <h2>최근 체결 · 취소 관리</h2>
                 </div>
                 <span>{recentActivity.length}건 표시</span>
@@ -448,7 +460,7 @@ export function StaffDashboard({
             <section className="panel admin-audit-panel">
               <div className="admin-panel-heading">
                 <div>
-                  <span className="eyebrow">ADMIN AUDIT LOG</span>
+                  <span className="eyebrow">관리 기록</span>
                   <h2>운영 감사 로그</h2>
                 </div>
                 <span>최근 {auditLogs.length}건</span>

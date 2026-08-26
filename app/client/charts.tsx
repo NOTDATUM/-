@@ -1,7 +1,14 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   LAST_ROUND,
   stocks,
@@ -52,6 +59,20 @@ function prepareCanvas(canvas: HTMLCanvasElement) {
 }
 
 type ChartViewport = { min: number; max: number; xMax: number };
+
+const lightChartColors: Record<string, string> = {
+  IMMU: "#4f7800",
+  VIRO: "#006c8a",
+  PEPT: "#995300",
+  GENO: "#5949a8",
+  SYNP: "#087763",
+  MICR: "#aa4610",
+  CANC: "#b72d48",
+  CELL: "#155bad",
+  VACC: "#91388f",
+};
+
+const lineDashPatterns = [[], [10, 5], [3, 4], [12, 4, 3, 4], [7, 4]];
 
 function niceScaleStep(value: number) {
   const magnitude = 10 ** Math.floor(Math.log10(Math.max(value, 1)));
@@ -118,6 +139,7 @@ export function AllStocksChart({
   tone?: "light" | "dark" | "projector" | "projector-light";
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const descriptionId = useId();
   const viewportRef = useRef<ChartViewport | null>(null);
   const previousRoundRef = useRef<number | null>(null);
   const targetViewport = useMemo(
@@ -140,13 +162,20 @@ export function AllStocksChart({
       const projector = tone === "projector" || tone === "projector-light";
       const projectorLight = tone === "projector-light";
       const light = tone === "light" || tone === "projector-light";
+      const narrowChart = width < 620;
       const chartLabelSize = projector
-        ? Math.max(18, Math.min(21, width / 68))
-        : 12;
+        ? narrowChart
+          ? 14
+          : Math.max(18, Math.min(21, width / 68))
+        : width < 480
+          ? 11
+          : 12;
       const pad = compact
         ? { top: 12, right: 10, bottom: 22, left: 10 }
         : projector
-          ? { top: 42, right: 34, bottom: 64, left: 96 }
+          ? narrowChart
+            ? { top: 34, right: 16, bottom: 48, left: 58 }
+            : { top: 42, right: 34, bottom: 64, left: 96 }
           : { top: 31, right: 26, bottom: 46, left: 72 };
       const plotWidth = width - pad.left - pad.right;
       const plotHeight = height - pad.top - pad.bottom;
@@ -238,14 +267,20 @@ export function AllStocksChart({
                   : "rgba(225,233,246,.2)";
           context.textAlign = "center";
           context.fillText(
-            index === 0 ? "기준가" : `${index}라운드`,
+            index === 0
+              ? narrowChart
+                ? "기준"
+                : "기준가"
+              : narrowChart
+                ? `R${index}`
+                : `${index}라운드`,
             x(index),
             height - (projector ? 17 : 13),
           );
         }
       }
 
-      visibleStocks.forEach((stock) => {
+      visibleStocks.forEach((stock, stockIndex) => {
         const points = (prices[stock.ticker] ?? stock.prices)
           .map((price, index) => ({ index, value: price }))
           .filter(
@@ -269,18 +304,25 @@ export function AllStocksChart({
           if (index === 0) context.moveTo(px, py);
           else context.lineTo(px, py);
         });
-        context.strokeStyle = stock.color;
+        const seriesColor = light ? lightChartColors[stock.ticker] : stock.color;
+        context.strokeStyle = seriesColor;
         context.lineWidth = compact ? 1.4 : projector ? 3.6 : 2.2;
         context.lineJoin = "round";
         context.lineCap = "round";
+        context.setLineDash(
+          selectedTicker
+            ? []
+            : lineDashPatterns[stockIndex % lineDashPatterns.length],
+        );
         context.globalAlpha =
           (compact ? 0.8 : 0.92) * (entering ? Math.max(0.15, reveal) : 1);
         context.stroke();
+        context.setLineDash([]);
         context.globalAlpha = 1;
         const last = animatedPoints.at(-1)!;
         const pulse = Math.sin(reveal * Math.PI);
         context.save();
-        context.shadowColor = stock.color;
+        context.shadowColor = seriesColor;
         context.shadowBlur = pulse * (compact ? 7 : 14);
         context.beginPath();
         context.arc(
@@ -290,12 +332,12 @@ export function AllStocksChart({
           0,
           Math.PI * 2,
         );
-        context.fillStyle = stock.color;
+        context.fillStyle = seriesColor;
         context.globalAlpha = entering ? Math.max(0.15, reveal) : 1;
         context.fill();
         context.restore();
         if (!compact && selectedTicker === stock.ticker) {
-          context.fillStyle = stock.color;
+          context.fillStyle = seriesColor;
           context.font = "700 12px Arial";
           context.textAlign = "right";
           context.fillText(
@@ -364,14 +406,24 @@ export function AllStocksChart({
       <canvas
         ref={ref}
         className={compact ? "all-chart compact" : "all-chart"}
+        role="img"
+        aria-describedby={descriptionId}
         aria-label={`${selectedTicker ?? "전체 종목"} 실제 주가 차트, 세로축 ${targetViewport.min} BE에서 ${targetViewport.max} BE, 가로축 기준가부터 ${round}라운드`}
       />
+      <p className="sr-only" id={descriptionId}>
+        {visibleStocks
+          .map((stock) => {
+            const currentPrice = (prices[stock.ticker] ?? stock.prices)[round];
+            return `${stock.name} ${stock.ticker} ${currentPrice === null ? "거래 불가" : `${money.format(currentPrice)} BE`}`;
+          })
+          .join(", ")}
+      </p>
       {!compact && (
         <span
           key={`${round}-${selectedTicker ?? "all"}`}
           className="chart-scale-pill"
         >
-          {selectedTicker ?? "ALL"} · AUTO SCALE · {targetViewport.min}–
+          {selectedTicker ?? "전체"} · 자동 축 · {targetViewport.min}–
           {targetViewport.max} BE
         </span>
       )}
@@ -655,6 +707,7 @@ export function ScenarioPriceChart({
       <canvas
         ref={canvasRef}
         className={`scenario-canvas ${activeRound !== null ? "dragging" : ""}`}
+        role="img"
         aria-label={`${stock.name} 주가 시나리오 차트. 공개되지 않은 점을 위아래로 드래그해 1 BE 단위로 수정`}
         onPointerDown={pointerDown}
         onPointerMove={pointerMove}

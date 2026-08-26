@@ -95,7 +95,11 @@ export function PriceScheduleEditor({
     }
   };
   return (
-    <main className="staff-shell price-editor-shell">
+    <main
+      className="staff-shell price-editor-shell"
+      id="main-content"
+      tabIndex={-1}
+    >
       <Topbar
         session={snapshot.session}
         round={snapshot.game.round}
@@ -107,7 +111,7 @@ export function PriceScheduleEditor({
         <header className="price-editor-heading">
           <div>
             <button onClick={close}>← 운영 화면</button>
-            <span className="eyebrow">MARKET SCENARIO CONTROL</span>
+            <span className="eyebrow">가격 운영</span>
             <h1>주가 시나리오 관리</h1>
             <p>
               지나간 라운드는 기록으로 잠기며, 아직 공개되지 않은 가격만 수정할
@@ -135,53 +139,78 @@ export function PriceScheduleEditor({
           <span>● 현재/진행 완료</span>
           <span>● 다음 공개 라운드</span>
           <span>빈칸은 해당 라운드 거래 불가</span>
-          {message && <strong>{message}</strong>}
+          <span className="price-editor-apply-note">
+            저장한 가격은 모든 화면과 체결가에 즉시 적용되며, 참가자에게는 현재
+            라운드까지만 공개됩니다.
+          </span>
+          {message && (
+            <strong role="status" aria-live="polite">
+              {message}
+            </strong>
+          )}
         </div>
-        <section className="scenario-chart-panel">
-          <header>
-            <div>
-              <span className="eyebrow">DRAG TO EDIT</span>
-              <h2>차트로 가격 수정</h2>
-              <p>
-                종목을 선택한 뒤 공개되지 않은 점을 위아래로 움직이세요. 아래
-                표가 즉시 같은 값으로 바뀝니다.
-              </p>
+        <div className="price-editor-workspace">
+          <section className="scenario-chart-panel">
+            <header>
+              <div>
+                <span className="eyebrow">차트와 표 연동</span>
+                <h2>차트로 가격 수정</h2>
+                <p>
+                  종목을 선택한 뒤 공개되지 않은 점을 위아래로 움직이세요. 옆의
+                  표가 즉시 같은 값으로 바뀝니다.
+                </p>
+              </div>
+              <em>
+                {stocks.find((stock) => stock.ticker === selectedTicker)?.name}
+              </em>
+            </header>
+            <div className="scenario-stock-tabs">
+              {stocks.map((stock) => (
+                <button
+                  className={stock.ticker === selectedTicker ? "selected" : ""}
+                  aria-pressed={stock.ticker === selectedTicker}
+                  onClick={() => setSelectedTicker(stock.ticker)}
+                  key={stock.ticker}
+                >
+                  <i style={{ background: stock.color }} />
+                  <span>{stock.name}</span>
+                  <strong>{stock.ticker}</strong>
+                </button>
+              ))}
             </div>
-            <em>
-              {stocks.find((stock) => stock.ticker === selectedTicker)?.name}
-            </em>
-          </header>
-          <div className="scenario-stock-tabs">
-            {stocks.map((stock) => (
-              <button
-                className={stock.ticker === selectedTicker ? "selected" : ""}
-                onClick={() => setSelectedTicker(stock.ticker)}
-                key={stock.ticker}
-              >
-                <i style={{ background: stock.color }} />
-                <span>{stock.name}</span>
-                <strong>{stock.ticker}</strong>
-              </button>
-            ))}
-          </div>
-          <ScenarioPriceChart
-            stock={
-              stocks.find((stock) => stock.ticker === selectedTicker) ??
-              stocks[0]
-            }
-            values={draft[selectedTicker] ?? []}
-            firstEditableRound={firstEditableRound}
-            dirty={dirty}
-            onChange={updateDraft}
-          />
-        </section>
-        <div className="price-table-wrap">
+            <div aria-describedby="scenario-keyboard-help">
+              <p className="sr-only" id="scenario-keyboard-help">
+                차트의 점은 마우스나 터치로 움직일 수 있습니다. 키보드 사용자는
+                옆의 가격표 입력 칸에서 같은 값을 수정할 수 있습니다.
+              </p>
+              <ScenarioPriceChart
+                stock={
+                  stocks.find((stock) => stock.ticker === selectedTicker) ??
+                  stocks[0]
+                }
+                values={draft[selectedTicker] ?? []}
+                firstEditableRound={firstEditableRound}
+                dirty={dirty}
+                onChange={updateDraft}
+              />
+            </div>
+          </section>
+          <div
+            className="price-table-wrap"
+            role="region"
+            aria-label="라운드별 주가 수정표"
+            tabIndex={0}
+          >
           <table className="price-schedule-table">
+            <caption className="sr-only">
+              종목별 기준가와 1라운드부터 {LAST_ROUND}라운드까지의 가격
+            </caption>
             <thead>
               <tr>
-                <th>종목</th>
+                <th scope="col">종목</th>
                 {Array.from({ length: LAST_ROUND + 1 }, (_, round) => (
                   <th
+                    scope="col"
                     className={
                       round === firstEditableRound
                         ? "next"
@@ -206,7 +235,7 @@ export function PriceScheduleEditor({
             <tbody>
               {stocks.map((stock) => (
                 <tr key={stock.ticker}>
-                  <th>
+                  <th scope="row">
                     <i style={{ background: stock.color }} />
                     <span>
                       <strong>{stock.name}</strong>
@@ -286,12 +315,9 @@ export function PriceScheduleEditor({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
-        <p className="price-editor-footnote">
-          저장한 가격은 모든 스태프·참가자 화면과 실제 매수·매도 체결가에 즉시
-          적용됩니다. 참가자에게는 현재 라운드까지의 가격만 공개됩니다.
-        </p>
       </section>
     </main>
   );

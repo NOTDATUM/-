@@ -21,23 +21,23 @@ test("builds the Biology Exchange login and role-based game", async () => {
   const { page, server } = await builtSources();
 
   assert.match(server, /BE · Biology Exchange/);
-  assert.match(page, /BIOLOGY EXCHANGE/);
-  assert.match(page, /생명과학부 모의주식시장/);
+  assert.match(page, /동행/);
+  assert.match(page, /생명과학부 모의주식 레크리에이션/);
   assert.match(page, /모의주식시장 입장/);
   assert.match(page, /운영자 콘솔 로그인/);
   assert.match(page, /공용 진행 화면 연결/);
   assert.match(page, /운영 관리 콘솔/);
   assert.match(page, /참가 조 관리/);
-  assert.match(page, /CURRENT MARKET EVENT/);
-  assert.match(page, /조별 수익률/);
-  assert.match(page, /이번 라운드 참고 포인트/);
-  assert.match(page, /자산 비공개/);
+  assert.match(page, /현재 라운드 주요 공지/);
+  assert.match(page, /조별 누적 수익률/);
+  assert.match(page, /이번 라운드 참고 정보/);
+  assert.match(page, /실제 자산은 공개하지 않음/);
   assert.match(page, /화면 메뉴/);
   assert.match(page, /종목 색상 범례/);
   assert.match(page, /전체화면/);
   assert.match(page, /be-view-theme/);
   assert.match(page, /projector-light/);
-  assert.match(page, /전체 주식시장/);
+  assert.match(page, /전체 시장/);
   assert.match(page, /전체 차트/);
   assert.match(page, /단일 차트/);
   assert.match(page, /상세보기/);
@@ -69,37 +69,51 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.doesNotMatch(page, /Your site is taking shape/);
 });
 
-test("keeps participant and staff tables inside the viewport", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+test("uses a responsive service design system for participant and staff screens", async () => {
+  const css = await readFile(
+    new URL("../app/service-design.css", import.meta.url),
+    "utf8",
+  );
   const staffDashboard = await readFile(
     new URL("../app/client/staff-dashboard.tsx", import.meta.url),
     "utf8",
   );
 
   assert.match(css, /\.client-holdings \{[^}]*display: grid/);
-  assert.match(css, /\.client-side-column \{[^}]*grid-template-rows: auto auto minmax\(0,1fr\)/);
+  assert.match(css, /--ds-action:/);
+  assert.match(css, /\.skip-link \{/);
+  assert.match(css, /:focus-visible/);
   assert.match(css, /\.admin-hint-editor \{[^}]*grid-template-columns:/);
-  assert.match(css, /\.admin-team-table \{[^}]*padding: 0 12px 12px/);
-  assert.match(css, /\.admin-team-table td \{[^}]*height: 68px/);
-  assert.match(css, /\.admin-hint-editor input \{[^}]*height: 36px/);
+  assert.match(css, /\.admin-team-table td \{[^}]*height: 58px/);
+  assert.match(css, /\.admin-hint-editor input \{[^}]*height: 38px/);
   assert.doesNotMatch(staffDashboard, /apply\(value \+ 100\)/);
   assert.match(css, /\.admin-team-table table \{[^}]*table-layout: fixed/);
   assert.match(css, /\.price-schedule-table \{[^}]*table-layout: fixed/);
-  assert.doesNotMatch(css, /min-width: 1130px/);
-  assert.doesNotMatch(css, /min-width: 1450px/);
+  assert.match(css, /@media \(max-width: 820px\)/);
+  assert.match(css, /\.price-schedule-table \{[^}]*width: 980px/);
 });
 
 test("keeps the public view legible on a projector", async () => {
-  const css = await readFile(new URL("../app/globals.css", import.meta.url), "utf8");
+  const css = await readFile(
+    new URL("../app/service-design.css", import.meta.url),
+    "utf8",
+  );
   const charts = await readFile(
     new URL("../app/client/charts.tsx", import.meta.url),
     "utf8",
   );
 
-  assert.match(css, /\.view-event-copy h1 \{[^}]*font-size: clamp\(38px,2\.8vw,54px\)/);
-  assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(4,minmax\(0,1fr\)\)/);
-  assert.match(css, /\.view-ranking-grid article > em \{[^}]*font-size: 20px/);
-  assert.match(css, /\.view-reference p \{[^}]*font-size: 14px/);
+  assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(46px, 3\.6vw, 58px\)/);
+  assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 780 24px/);
+  assert.match(css, /\.view-reference p \{[^}]*font-size: 16px/);
+  assert.match(css, /@media \(max-width: 1179px\)/);
+  assert.match(css, /\.view-shell,[^}]*\.view-shell\.theme-light \{[^}]*height: auto/);
+  assert.match(css, /@media \(min-width: 900px\) and \(max-width: 1179px\)/);
+  assert.match(css, /grid-template-columns: minmax\(0, 1\.35fr\) minmax\(340px, 0\.65fr\)/);
   assert.match(charts, /Math\.max\(18, Math\.min\(21, width \/ 68\)\)/);
+  assert.match(charts, /narrowChart/);
   assert.match(charts, /projectorLight/);
+  assert.match(charts, /lightChartColors/);
+  assert.match(charts, /lineDashPatterns/);
 });

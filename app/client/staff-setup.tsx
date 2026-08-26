@@ -96,10 +96,14 @@ export function SeedSetup({
     initial?.find((team) => team.teamId === index + 1),
   ).filter((team) => team?.online).length;
   return (
-    <section className="seed-page">
+    <section
+      className="seed-page"
+      aria-labelledby="seed-setup-title"
+      aria-busy={busy !== null}
+    >
       <div className="seed-hero">
-        <span className="eyebrow">GAME ADMINISTRATION</span>
-        <h1>게임 운영 초기 설정</h1>
+        <span className="eyebrow">게임 준비</span>
+        <h1 id="seed-setup-title">게임 운영 초기 설정</h1>
         <p>
           참가 조 구성과 초기 자산을 확정한 뒤 공용 진행 화면과 참가자 화면을
           시작합니다.
@@ -141,7 +145,7 @@ export function SeedSetup({
       <section className="seed-presence-board">
         <header>
           <div>
-            <span className="eyebrow">TEAM CONNECTIONS</span>
+            <span className="eyebrow">실시간 접속 상태</span>
             <h2>조별 접속 상태</h2>
           </div>
           <strong>
@@ -205,7 +209,11 @@ export function SeedSetup({
           </label>
         ))}
       </div>
-      {error && <div className="form-error wide">{error}</div>}
+      {error && (
+        <div className="form-error wide" role="alert">
+          {error}
+        </div>
+      )}
       {saved && !error && (
         <div className="setup-success" role="status">
           {seeds.length}개 조의 구성과 시드머니가 저장되었습니다. 참가자들은

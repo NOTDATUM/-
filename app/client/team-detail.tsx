@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useEffect, useRef } from "react";
 import {
   getStockPrice,
   stocks,
@@ -17,7 +18,7 @@ export function StockProfile({ stock }: { stock: Stock }) {
       style={{ "--stock-accent": stock.color } as React.CSSProperties}
     >
       <div className="stock-profile-intro">
-        <span className="eyebrow">COMPANY PROFILE</span>
+        <span className="eyebrow">기업 상세 정보</span>
         <h3>{stock.sector}</h3>
         <p>{stock.description}</p>
       </div>
@@ -31,12 +32,12 @@ export function StockProfile({ stock }: { stock: Stock }) {
       </div>
       <div className="stock-profile-balance">
         <article className="growth">
-          <span>GROWTH DRIVER</span>
+          <span>긍정 요인</span>
           <h4>성장 동력</h4>
           <p>{stock.strength}</p>
         </article>
         <article className="risk">
-          <span>CORE RISK</span>
+          <span>주의 요인</span>
           <h4>핵심 리스크</h4>
           <p>{stock.risk}</p>
         </article>
@@ -60,6 +61,8 @@ export function ClientDetailModal({
   prices: PriceSchedule;
   onClose: () => void;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
   const stockValue = team.totalAsset - team.cash;
   const pnl = team.totalAsset - team.seedMoney;
   const positions = stocks.flatMap((stock) => {
@@ -70,6 +73,60 @@ export function ClientDetailModal({
       { stock, shares, currentPrice, value: shares * (currentPrice ?? 0) },
     ];
   });
+  const headingId = `client-detail-${view}-heading`;
+  const descriptionId = `client-detail-${view}-description`;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const dialog = dialogRef.current;
+    dialog?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (
+        event.shiftKey &&
+        (document.activeElement === dialog || document.activeElement === first)
+      ) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, []);
 
   return (
     <div
@@ -78,14 +135,13 @@ export function ClientDetailModal({
       onMouseDown={onClose}
     >
       <section
+        ref={dialogRef}
         className="client-detail-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={
-          view === "assets"
-            ? `${team.teamId}조 자산 상세`
-            : `${team.teamId}조 전체 거래내역`
-        }
+        aria-labelledby={headingId}
+        aria-describedby={descriptionId}
+        tabIndex={-1}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <button
@@ -96,11 +152,11 @@ export function ClientDetailModal({
           ×
         </button>
         <header className="client-detail-heading">
-          <span>{view === "assets" ? "ASSET DETAILS" : "TRADE HISTORY"}</span>
-          <h2>
+          <span>{view === "assets" ? "자산 구성" : "거래 기록"}</span>
+          <h2 id={headingId}>
             {view === "assets" ? `${team.teamId}조 자산 상세` : "전체 거래내역"}
           </h2>
-          <p>
+          <p id={descriptionId}>
             {view === "assets"
               ? "현금과 보유 주식의 현재 평가액을 확인합니다."
               : `지금까지 체결된 매수·매도 ${team.trades.length}건을 모두 확인합니다.`}
@@ -140,17 +196,25 @@ export function ClientDetailModal({
             </div>
             <div className="client-detail-table">
               <div className="client-detail-table-title">
-                <h3>보유 종목</h3>
+                <h3 id="client-assets-table-heading">보유 종목</h3>
                 <span>{positions.length}개 종목</span>
               </div>
-              <div>
+              <div
+                className="client-detail-table-scroll"
+                role="region"
+                aria-labelledby="client-assets-table-heading"
+                tabIndex={0}
+              >
                 <table>
+                  <caption className="sr-only">
+                    보유 종목별 수량, 현재가, 평가액
+                  </caption>
                   <thead>
                     <tr>
-                      <th>종목</th>
-                      <th>보유 수량</th>
-                      <th>현재가</th>
-                      <th>평가액</th>
+                      <th scope="col">종목</th>
+                      <th scope="col">보유 수량</th>
+                      <th scope="col">현재가</th>
+                      <th scope="col">평가액</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -191,19 +255,27 @@ export function ClientDetailModal({
         ) : (
           <div className="client-detail-table trades">
             <div className="client-detail-table-title">
-              <h3>체결 내역</h3>
+              <h3 id="client-trades-table-heading">체결 내역</h3>
               <span>최신 거래순</span>
             </div>
-            <div>
+            <div
+              className="client-detail-table-scroll"
+              role="region"
+              aria-labelledby="client-trades-table-heading"
+              tabIndex={0}
+            >
               <table>
+                <caption className="sr-only">
+                  라운드별 매수·매도 전체 체결 내역
+                </caption>
                 <thead>
                   <tr>
-                    <th>라운드</th>
-                    <th>구분</th>
-                    <th>종목</th>
-                    <th>수량</th>
-                    <th>체결가</th>
-                    <th>거래금액</th>
+                    <th scope="col">라운드</th>
+                    <th scope="col">구분</th>
+                    <th scope="col">종목</th>
+                    <th scope="col">수량</th>
+                    <th scope="col">체결가</th>
+                    <th scope="col">거래금액</th>
                   </tr>
                 </thead>
                 <tbody>

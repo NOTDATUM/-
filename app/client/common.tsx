@@ -11,8 +11,10 @@ export function Brand({ compact = false }: { compact?: boolean }) {
     <div className={`brand-lockup ${compact ? "compact" : ""}`}>
       <div className="be-mark">BE</div>
       <div>
-        <div className="brand-name">BIOLOGY EXCHANGE</div>
-        <div className="brand-sub">생명과학부 모의주식시장</div>
+        <div className="brand-name">동행</div>
+        <div className="brand-sub">
+          BIOLOGY EXCHANGE · 생명과학부 모의주식 레크리에이션
+        </div>
       </div>
     </div>
   );
@@ -37,20 +39,20 @@ export function LoginScreen({
   const accessCopy =
     accessMode === "staff"
       ? {
-          eyebrow: "ADMIN CONSOLE",
+          eyebrow: "운영 스태프 전용",
           title: "운영자 콘솔 로그인",
-          detail: "라운드 진행, 계정 상태와 거래 운영을 관리합니다.",
+          detail: "라운드 진행과 참가 조 계정, 거래 현황을 관리합니다.",
           action: "관리 콘솔 입장",
         }
       : accessMode === "view"
         ? {
-            eyebrow: "LIVE DISPLAY",
+            eyebrow: "공용 진행 화면",
             title: "공용 진행 화면 연결",
-            detail: "행사장 전체가 함께 보는 실시간 시장 현황판입니다.",
+            detail: "행사장에서 함께 보는 실시간 시장 현황을 표시합니다.",
             action: "진행 화면 열기",
           }
         : {
-            eyebrow: "MARKET ACCESS",
+            eyebrow: "참가 조 로그인",
             title: "모의주식시장 입장",
             detail: "배정받은 조 번호와 공통 비밀번호로 로그인하세요.",
             action: "시장 입장",
@@ -83,12 +85,7 @@ export function LoginScreen({
     }
   };
   return (
-    <main className="login-shell">
-      <div className="login-ambient">
-        <div />
-        <div />
-        <div />
-      </div>
+    <main className="login-shell" id="main-content" tabIndex={-1}>
       <section className={`login-card login-card-${accessMode}`}>
         <Brand />
         <div className="login-copy">
@@ -96,7 +93,7 @@ export function LoginScreen({
           <h1>{accessCopy.title}</h1>
           <p>{accessCopy.detail}</p>
         </div>
-        <form onSubmit={submit} className="login-form">
+        <form onSubmit={submit} className="login-form" aria-busy={busy}>
           <label>
             <span>아이디</span>
             <input
@@ -105,6 +102,8 @@ export function LoginScreen({
               placeholder="조 번호, staff 또는 view"
               autoComplete="username"
               autoFocus
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </label>
           <label>
@@ -115,12 +114,23 @@ export function LoginScreen({
               type="password"
               placeholder="비밀번호 입력"
               autoComplete="current-password"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </label>
-          {error && <div className="form-error">{error}</div>}
-          <button disabled={busy || !id || !password}>
+          {error && (
+            <div
+              className="form-error"
+              id="login-error"
+              role="alert"
+              aria-live="assertive"
+            >
+              {error}
+            </div>
+          )}
+          <button type="submit" disabled={busy || !id || !password}>
             {busy ? "확인 중..." : accessCopy.action}
-            <span>→</span>
+            <span aria-hidden="true">→</span>
           </button>
         </form>
         <div className="login-hint">
@@ -147,23 +157,27 @@ export function LoginScreen({
 
 export function RoundProgress({ round }: { round: number }) {
   return (
-    <div
+    <ol
       className="round-progress"
       aria-label={`${LAST_ROUND}라운드 진행 상황`}
     >
       {Array.from({ length: LAST_ROUND }, (_, index) => {
         const value = index + 1;
+        const status =
+          value < round ? "완료" : value === round ? "현재" : "예정";
         return (
-          <div
+          <li
             className={`${value < round ? "done" : ""} ${value === round ? "active" : ""}`}
             key={value}
+            aria-current={value === round ? "step" : undefined}
+            aria-label={`${value}라운드, ${status}`}
           >
-            <span>{value < round ? "✓" : value}</span>
-            <small>R{value}</small>
-          </div>
+            <span aria-hidden="true">{value < round ? "✓" : value}</span>
+            <small aria-hidden="true">R{value}</small>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -185,10 +199,10 @@ export function Topbar({
   onToggleTheme?: () => void;
 }) {
   const marketLabel = !started
-    ? "MARKET READY"
+    ? "시작 준비"
     : round === LAST_ROUND
-      ? "MARKET CLOSED"
-      : "MARKET OPEN";
+      ? "장 마감"
+      : "장 운영 중";
   return (
     <header
       className={`topbar ${presentation ? "presentation" : ""} ${session.role === "team" ? "client-topbar" : ""}`}
@@ -204,9 +218,9 @@ export function Topbar({
       <div className="account-actions">
         <span>
           {session.role === "staff"
-            ? "STAFF CONTROL"
+            ? "운영 스태프"
             : session.role === "view"
-              ? "LIVE DISPLAY"
+              ? "공용 진행 화면"
               : `${session.teamId}조 계정`}
         </span>
         {session.role === "team" && clientTheme && onToggleTheme && (
@@ -234,13 +248,13 @@ export function WaitingScreen({
   onLogout: () => void;
 }) {
   return (
-    <main className="app-shell">
+    <main className="app-shell" id="main-content" tabIndex={-1}>
       <Topbar session={session} round={0} onLogout={onLogout} started={false} />
-      <section className="waiting-screen">
-        <div className="waiting-orbit">
-          <span>BE</span>
+      <section className="waiting-screen" aria-live="polite">
+        <div className="waiting-status" aria-hidden="true">
+          <span>준비 중</span>
         </div>
-        <span className="eyebrow">WAITING FOR STAFF</span>
+        <span className="eyebrow">게임 준비 중</span>
         <h1>게임 시작을 기다리고 있습니다</h1>
         <p>
           스태프가 시드머니를 저장한 뒤 게임 시작 버튼을 누르면 자동으로 거래
