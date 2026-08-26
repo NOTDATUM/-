@@ -18,7 +18,8 @@ export async function ensureGameSchema() {
     db.prepare(`CREATE TABLE IF NOT EXISTS teams (
       team_id INTEGER PRIMARY KEY,
       seed_money INTEGER NOT NULL DEFAULT 1000,
-      cash INTEGER NOT NULL DEFAULT 1000
+      cash INTEGER NOT NULL DEFAULT 1000,
+      hint_coins INTEGER NOT NULL DEFAULT 0
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS team_sessions (
       team_id INTEGER PRIMARY KEY,
@@ -70,6 +71,16 @@ export async function ensureGameSchema() {
   if (!tradeColumns.results.some((column) => column.name === "canceled_at")) {
     await db.prepare("ALTER TABLE trades ADD COLUMN canceled_at TEXT").run();
   }
+  const teamColumns = await db
+    .prepare("PRAGMA table_info(teams)")
+    .all<{ name: string }>();
+  if (!teamColumns.results.some((column) => column.name === "hint_coins")) {
+    await db
+      .prepare(
+        "ALTER TABLE teams ADD COLUMN hint_coins INTEGER NOT NULL DEFAULT 0",
+      )
+      .run();
+  }
 
   await db
     .prepare(
@@ -109,7 +120,12 @@ export async function ensureGameSchema() {
   const priceCount = await db
     .prepare("SELECT COUNT(*) AS count FROM price_schedule")
     .first<{ count: number }>();
-  if (!priceCount?.count) {
+  const expectedPriceCount = gameData.stocks.reduce(
+    (count, stock) => count + stock.prices.length,
+    0,
+  );
+  if (priceCount?.count !== expectedPriceCount) {
+    await db.prepare("DELETE FROM price_schedule").run();
     const prices = [];
     for (const stock of gameData.stocks) {
       stock.prices.forEach((price, round) => {
@@ -123,5 +139,12 @@ export async function ensureGameSchema() {
       });
     }
     await db.batch(prices);
+    const lastRound = Math.max(
+      ...gameData.stocks.map((stock) => stock.prices.length - 1),
+    );
+    await db
+      .prepare("UPDATE game_state SET round = ? WHERE round > ?")
+      .bind(lastRound, lastRound)
+      .run();
   }
 }

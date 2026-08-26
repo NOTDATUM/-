@@ -42,7 +42,7 @@ export function PriceScheduleEditor({
     const value =
       rawValue === ""
         ? null
-        : Math.max(1, Math.min(100_000_000, Math.floor(Number(rawValue) || 1)));
+        : Math.max(0, Math.min(100_000_000, Math.floor(Number(rawValue) || 0)));
     setDraft((current) => ({
       ...current,
       [ticker]: current[ticker].map((price, index) =>
@@ -253,7 +253,7 @@ export function PriceScheduleEditor({
                             <input
                               aria-label={`${stock.name} ${round === 0 ? "기준가" : `${round}라운드`} 주가`}
                               type="number"
-                              min="1"
+                              min="0"
                               max="100000000"
                               value={value ?? ""}
                               placeholder="—"

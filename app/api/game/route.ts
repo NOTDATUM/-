@@ -7,7 +7,12 @@ import {
 } from "../../game-data";
 import { publicGameSession, readSession } from "../../lib/session";
 
-type TeamRow = { team_id: number; seed_money: number; cash: number };
+type TeamRow = {
+  team_id: number;
+  seed_money: number;
+  cash: number;
+  hint_coins: number;
+};
 type HoldingRow = { team_id: number; ticker: string; shares: number };
 type TradeRow = {
   id: number;
@@ -54,7 +59,9 @@ export async function GET() {
       .prepare("SELECT round, started, updated_at FROM game_state WHERE id = 1")
       .first<{ round: number; started: number; updated_at: string }>(),
     db
-      .prepare("SELECT team_id, seed_money, cash FROM teams ORDER BY team_id")
+      .prepare(
+        "SELECT team_id, seed_money, cash, hint_coins FROM teams ORDER BY team_id",
+      )
       .all<TeamRow>(),
     db
       .prepare(
@@ -117,6 +124,7 @@ export async function GET() {
       teamId: team.team_id,
       seedMoney: team.seed_money,
       cash: team.cash,
+      hintCoins: team.hint_coins,
       totalAsset: team.cash + stockValue,
       holdings: Object.fromEntries(
         teamHoldings.map((item) => [item.ticker, item.shares]),

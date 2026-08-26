@@ -37,5 +37,5 @@ export function isStockTradable(
   round: number,
   schedule?: PriceSchedule,
 ) {
-  return round < LAST_ROUND && getStockPrice(ticker, round, schedule) !== null;
+  return round < LAST_ROUND && (getStockPrice(ticker, round, schedule) ?? 0) > 0;
 }

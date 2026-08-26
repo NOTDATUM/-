@@ -147,8 +147,11 @@ export function LoginScreen({
 
 export function RoundProgress({ round }: { round: number }) {
   return (
-    <div className="round-progress" aria-label="10라운드 진행 상황">
-      {Array.from({ length: 10 }, (_, index) => {
+    <div
+      className="round-progress"
+      aria-label={`${LAST_ROUND}라운드 진행 상황`}
+    >
+      {Array.from({ length: LAST_ROUND }, (_, index) => {
         const value = index + 1;
         return (
           <div

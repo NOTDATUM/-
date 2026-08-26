@@ -19,6 +19,7 @@ export const teams = sqliteTable("teams", {
   teamId: integer("team_id").primaryKey(),
   seedMoney: integer("seed_money").notNull().default(1000),
   cash: integer("cash").notNull().default(1000),
+  hintCoins: integer("hint_coins").notNull().default(0),
 });
 
 export const holdings = sqliteTable(

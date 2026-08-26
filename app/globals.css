@@ -355,11 +355,15 @@ button { color: inherit; }
 .client-account-side > small { font: 700 11px var(--font-geist-mono); }
 .client-card-link { min-height: 29px; padding: 0 10px; border: 0; border-radius: 8px; background: #e8f3ff; color: #1b64da; font-size: 10px; font-weight: 750; cursor: pointer; }
 .client-card-link:hover { background: #d8eaff; }
-.client-account-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 5px; margin-top: 12px; }
+.client-account-metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 5px; margin-top: 12px; }
 .client-account-metrics > div { padding: 8px 9px; border-radius: 10px; background: #f9fafb; }
 .client-account-metrics span, .client-account-metrics strong { display: block; }
 .client-account-metrics span { color: #8b95a1; font-size: 10px; }
 .client-account-metrics strong { margin-top: 4px; color: #333d4b; font: 700 12px var(--font-geist-mono); }
+.client-account-metrics strong em { color: #8b95a1; font-size: 8px; font-style: normal; }
+.client-account-metrics .client-hint-metric { background: #fff8e8; box-shadow: inset 0 0 0 1px rgba(255,174,45,.18); }
+.client-account-metrics .client-hint-metric span { color: #a76c12; }
+.client-account-metrics .client-hint-metric strong { color: #d1840d; }
 .client-holdings { min-height: 23px; display: flex; gap: 5px; overflow-x: auto; margin-top: 9px; }
 .client-holdings button { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 0; border-radius: 8px; background: #f2f4f6; color: #6b7684; font-size: 10px; cursor: pointer; }
 .client-holdings button strong { color: #333d4b; }
@@ -544,6 +548,9 @@ button { color: inherit; }
 .toss-client.theme-dark .client-order-total strong,
 .toss-client.theme-dark .client-recent-card article p strong { color: #f0f3f7; }
 .toss-client.theme-dark .client-account-metrics > div { background: #151f2d; }
+.toss-client.theme-dark .client-account-metrics .client-hint-metric { background: rgba(255,180,48,.1); box-shadow: inset 0 0 0 1px rgba(255,190,78,.2); }
+.toss-client.theme-dark .client-account-metrics .client-hint-metric span { color: #e7b75d; }
+.toss-client.theme-dark .client-account-metrics .client-hint-metric strong { color: #ffd172; }
 .toss-client.theme-dark .client-card-link { background: #1b2f4d; color: #82b2ff; }
 .toss-client.theme-dark .client-card-link:hover { background: #223d62; }
 .toss-client.theme-dark .client-holdings button,
@@ -790,12 +797,22 @@ button { color: inherit; }
 .admin-live-count { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid rgba(183,243,76,.16); border-radius: 999px; color: #a8ca6b !important; font: 650 8px var(--font-geist-mono) !important; }
 .admin-live-count i { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 8px rgba(183,243,76,.55); }
 .admin-team-table { width: 100%; overflow: auto; }
-.admin-team-table table { width: 100%; min-width: 880px; border-collapse: collapse; white-space: nowrap; }
+.admin-team-table table { width: 100%; min-width: 1130px; border-collapse: collapse; white-space: nowrap; }
 .admin-team-table th { height: 36px; padding: 0 12px; border-bottom: 1px solid #202e43; background: #101a29; color: #69788e; font-size: 8px; font-weight: 690; text-align: left; }
 .admin-team-table td { height: 49px; padding: 7px 12px; border-bottom: 1px solid rgba(179,200,230,.075); color: #9eabbd; font: 600 9px var(--font-geist-mono); }
 .admin-team-table tbody tr:last-child td { border-bottom: 0; }
 .admin-team-table tbody tr:hover td { background: rgba(99,217,255,.025); }
 .admin-team-table td strong { color: #e4ebf5; font-weight: 680; }
+.admin-hint-editor { min-width: 185px; display: grid; gap: 5px; }
+.admin-hint-editor > div { display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+.admin-hint-editor input { width: 100%; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid #2a3a52; border-radius: 6px; outline: 0; background: #08111e; color: #ffd172; text-align: right; font: 720 10px var(--font-geist-mono); }
+.admin-hint-editor input:focus { border-color: rgba(255,209,114,.65); box-shadow: 0 0 0 2px rgba(255,209,114,.09); }
+.admin-hint-editor button { height: 28px; padding: 0 7px; border: 1px solid #2a3a52; border-radius: 6px; background: #111d2d; color: #9cabc0; font-size: 8px; font-weight: 720; cursor: pointer; }
+.admin-hint-editor > div button { border-color: rgba(255,209,114,.24); color: #eac276; }
+.admin-hint-editor nav { display: grid; grid-template-columns: repeat(4,1fr); gap: 3px; }
+.admin-hint-editor nav button { height: 24px; padding: 0 3px; }
+.admin-hint-editor button:hover:not(:disabled) { border-color: rgba(255,209,114,.52); background: rgba(255,209,114,.1); color: #ffe4aa; }
+.admin-hint-editor button:disabled, .admin-hint-editor input:disabled { opacity: .42; cursor: not-allowed; }
 .admin-team-link { min-width: 42px; padding: 5px 7px; border: 1px solid rgba(99,217,255,.2); border-radius: 6px; background: rgba(99,217,255,.055); color: #a4eaff; font: 720 9px var(--font-geist-sans); cursor: pointer; }
 .admin-presence { display: inline-flex; align-items: center; gap: 5px; color: #68778d; font-family: var(--font-geist-sans); font-size: 8px; }
 .admin-presence i { width: 6px; height: 6px; border-radius: 50%; background: #445168; }
@@ -1052,6 +1069,7 @@ button { color: inherit; }
   .client-stock-summary p strong { margin-right: 6px; }
   .client-account-top { align-items: flex-start; }
   .client-account-top strong { font-size: 24px; }
+  .client-account-metrics { grid-template-columns: repeat(2,1fr); }
   .client-detail-modal { padding: 10px; }
   .client-detail-dialog { padding: 20px 14px; border-radius: 18px; }
   .client-detail-heading { padding-right: 42px; }

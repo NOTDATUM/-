@@ -20,6 +20,7 @@ export type TeamView = {
   teamId: number;
   seedMoney: number;
   cash: number;
+  hintCoins: number;
   totalAsset: number;
   holdings: Record<string, number>;
   trades: Trade[];

@@ -13,7 +13,8 @@ const schema = `
   CREATE TABLE IF NOT EXISTS teams (
     team_id INTEGER PRIMARY KEY,
     seed_money INTEGER NOT NULL DEFAULT 1000,
-    cash INTEGER NOT NULL DEFAULT 1000
+    cash INTEGER NOT NULL DEFAULT 1000,
+    hint_coins INTEGER NOT NULL DEFAULT 0
   ) STRICT;
   CREATE TABLE IF NOT EXISTS team_sessions (
     team_id INTEGER PRIMARY KEY,
@@ -63,6 +64,12 @@ function migrateLegacyDatabase(db) {
   if (!tradeColumns.some((column) => column.name === "canceled_at")) {
     db.exec("ALTER TABLE trades ADD COLUMN canceled_at TEXT");
   }
+  const teamColumns = db.prepare("PRAGMA table_info(teams)").all();
+  if (!teamColumns.some((column) => column.name === "hint_coins")) {
+    db.exec(
+      "ALTER TABLE teams ADD COLUMN hint_coins INTEGER NOT NULL DEFAULT 0",
+    );
+  }
 }
 
 function seedTeams(db, defaultTeamCount) {
@@ -90,7 +97,13 @@ function seedPrices(db, stocks) {
   const configuredPriceCount = db
     .prepare("SELECT COUNT(*) AS count FROM price_schedule")
     .get().count;
-  if (configuredPriceCount !== 0) return;
+  const expectedPriceCount = stocks.reduce(
+    (count, stock) => count + stock.prices.length,
+    0,
+  );
+  if (configuredPriceCount === expectedPriceCount) return;
+
+  db.prepare("DELETE FROM price_schedule").run();
 
   const insertPrice = db.prepare(
     "INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)",
@@ -100,6 +113,11 @@ function seedPrices(db, stocks) {
       insertPrice.run(stock.ticker, round, price),
     );
   }
+  const lastRound = Math.max(...stocks.map((stock) => stock.prices.length - 1));
+  db.prepare("UPDATE game_state SET round = ? WHERE round > ?").run(
+    lastRound,
+    lastRound,
+  );
 }
 
 export function openGameDatabase({ databasePath, stocks, defaultTeamCount }) {

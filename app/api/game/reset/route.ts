@@ -17,7 +17,7 @@ export async function POST() {
     db.prepare("DELETE FROM holdings"),
     db.prepare("DELETE FROM trades"),
     db
-      .prepare("UPDATE teams SET seed_money = ?, cash = ?")
+      .prepare("UPDATE teams SET seed_money = ?, cash = ?, hint_coins = 0")
       .bind(DEFAULT_SEED_MONEY, DEFAULT_SEED_MONEY),
     db.prepare(
       "UPDATE game_state SET round = 0, started = 0, updated_at = CURRENT_TIMESTAMP WHERE id = 1",

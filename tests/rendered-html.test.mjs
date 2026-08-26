@@ -51,14 +51,16 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /강제 로그아웃/);
   assert.match(page, /운영 감사 로그/);
   assert.match(page, /거래 취소/);
+  assert.match(page, /힌트코인/);
   assert.match(page, /자산 상세/);
   assert.match(page, /전체보기/);
-  assert.match(page, /["']?label["']?: "10라운드"/);
+  assert.match(page, /["']?label["']?: "7라운드"/);
   assert.match(server, /TEAM_PASSWORD/);
   assert.match(server, /STAFF_PASSWORD/);
   assert.match(server, /VIEW_PASSWORD/);
   assert.match(server, /admin_audit_logs/);
   assert.match(server, /cancel-trade/);
+  assert.match(server, /hint-coins/);
   assert.match(server, /SESSION_SIGNING_KEY/);
   assert.doesNotMatch(page, /codex-preview/);
   assert.doesNotMatch(page, /Your site is taking shape/);

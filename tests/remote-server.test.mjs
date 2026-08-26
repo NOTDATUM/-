@@ -128,6 +128,15 @@ test("migrates an existing game database for cancellations and audit logs", asyn
     const migratedDb = new DatabaseSync(databasePath);
     const columns = migratedDb.prepare("PRAGMA table_info(trades)").all();
     assert.ok(columns.some((column) => column.name === "canceled_at"));
+    const teamColumns = migratedDb.prepare("PRAGMA table_info(teams)").all();
+    assert.ok(teamColumns.some((column) => column.name === "hint_coins"));
+    const priceSchedule = migratedDb
+      .prepare(
+        "SELECT COUNT(*) AS count, MAX(round) AS max_round FROM price_schedule",
+      )
+      .get();
+    assert.equal(priceSchedule.count, 72);
+    assert.equal(priceSchedule.max_round, 7);
     const auditTable = migratedDb
       .prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'admin_audit_logs'",
@@ -176,8 +185,12 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(preparedData.game.round, 0);
     assert.equal(preparedData.teams.length, 5);
     assert.equal(preparedData.teams[1].seedMoney, 1100);
+    assert.equal(preparedData.teams[0].hintCoins, 0);
     assert.equal(preparedData.teams[0].online, false);
     assert.equal(preparedData.teams[0].lastSeenAt, null);
+    assert.equal(preparedData.market.prices.VACC.length, 8);
+    assert.equal(preparedData.market.prices.VACC[2], 80);
+    assert.equal(preparedData.market.prices.VACC[7], 0);
 
     const preparedViewSnapshot = await api(running.baseUrl, "/api/game", {
       token: view.token,
@@ -190,6 +203,32 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(preparedViewData.auditLogs, null);
     assert.equal(preparedViewData.market.prices.IMMU[0], 120);
     assert.equal(preparedViewData.market.prices.IMMU[1], null);
+
+    const viewDeniedHintCoins = await api(
+      running.baseUrl,
+      "/api/game/hint-coins",
+      {
+        method: "POST",
+        token: view.token,
+        body: { teamId: 1, hintCoins: 500 },
+      },
+    );
+    assert.equal(viewDeniedHintCoins.status, 403);
+
+    const updateHintCoins = await api(
+      running.baseUrl,
+      "/api/game/hint-coins",
+      {
+        method: "POST",
+        token: staff.token,
+        body: { teamId: 1, hintCoins: 500 },
+      },
+    );
+    assert.deepEqual(await updateHintCoins.json(), {
+      ok: true,
+      teamId: 1,
+      hintCoins: 500,
+    });
 
     const viewDeniedStart = await api(running.baseUrl, "/api/game/start", {
       method: "POST",
@@ -309,6 +348,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(teamData.game.round, 1);
     assert.equal(teamData.team.cash, 702);
     assert.equal(teamData.team.holdings.IMMU, 2);
+    assert.equal(teamData.team.hintCoins, 500);
     assert.equal(teamData.teams, null);
     assert.equal(teamData.market.prices.IMMU[1], 149);
     assert.equal(teamData.market.prices.IMMU[2], null);
@@ -320,6 +360,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(staffData.teams[0].cash, 702);
     assert.equal(staffData.teams[0].trades.length, 1);
     assert.equal(staffData.teams[0].online, true);
+    assert.equal(staffData.teams[0].hintCoins, 500);
     assert.equal(staffData.team, null);
     assert.equal(staffData.market.prices.IMMU[2], 777);
 
@@ -472,6 +513,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.ok(
       persistedData.auditLogs.some((log) => log.action === "trade_cancel"),
     );
+    assert.equal(persistedData.teams[0].hintCoins, 500);
 
     const deniedReset = await api(running.baseUrl, "/api/game/reset", {
       method: "POST",
@@ -494,6 +536,7 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(resetData.teams.length, 5);
     assert.equal(resetData.teams[0].seedMoney, 1000);
     assert.equal(resetData.teams[0].cash, 1000);
+    assert.equal(resetData.teams[0].hintCoins, 0);
     assert.deepEqual(resetData.teams[0].holdings, {});
     assert.equal(resetData.teams[0].trades.length, 0);
     assert.equal(resetData.market.prices.IMMU[2], 777);

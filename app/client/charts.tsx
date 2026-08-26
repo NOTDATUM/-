@@ -385,12 +385,12 @@ export function ScenarioPriceChart({
   const dragViewportRef = useRef<{ min: number; max: number } | null>(null);
   const calculatedViewport = useMemo(() => {
     const numeric = values.filter((value): value is number => value !== null);
-    if (!numeric.length) return { min: 1, max: 101 };
+    if (!numeric.length) return { min: 0, max: 100 };
     const rawMin = Math.min(...numeric);
     const rawMax = Math.max(...numeric);
     const spread = Math.max(rawMax - rawMin, rawMax * 0.22, 20);
     const step = niceScaleStep(spread / 5);
-    const min = Math.max(1, Math.floor((rawMin - spread * 0.28) / step) * step);
+    const min = Math.max(0, Math.floor((rawMin - spread * 0.28) / step) * step);
     const max = Math.max(
       min + 10,
       Math.ceil((rawMax + spread * 0.28) / step) * step,
@@ -596,7 +596,7 @@ export function ScenarioPriceChart({
       Math.min(1, (event.clientY - rect.top - pad.top) / plotHeight),
     );
     const value = Math.max(
-      1,
+      0,
       Math.round(
         activeViewport.max - ratio * (activeViewport.max - activeViewport.min),
       ),

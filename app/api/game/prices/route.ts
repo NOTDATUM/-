@@ -49,7 +49,7 @@ export async function POST(request: Request) {
         item.round > LAST_ROUND ||
         (item.price !== null &&
           (!Number.isInteger(item.price) ||
-            item.price < 1 ||
+            item.price < 0 ||
             item.price > 100_000_000)),
     )
   ) {

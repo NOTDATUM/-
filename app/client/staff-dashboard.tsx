@@ -8,6 +8,69 @@ import { money } from "./constants";
 import { StaffTeamDetail } from "./staff-team-detail";
 import { isTeamView, type Snapshot, type Trade } from "./types";
 
+function HintCoinEditor({
+  teamId,
+  value,
+  busy,
+  onUpdate,
+}: {
+  teamId: number;
+  value: number;
+  busy: boolean;
+  onUpdate: (teamId: number, value: number) => void | Promise<void>;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  const normalized = Math.max(
+    0,
+    Math.min(1_000_000_000, Math.floor(Number(draft) || 0)),
+  );
+  const apply = (next: number) => {
+    const safeNext = Math.max(0, Math.min(1_000_000_000, next));
+    setDraft(String(safeNext));
+    void onUpdate(teamId, safeNext);
+  };
+
+  return (
+    <div className="admin-hint-editor">
+      <div>
+        <input
+          aria-label={`${teamId}조 힌트코인`}
+          disabled={busy}
+          min="0"
+          max="1000000000"
+          type="number"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !busy) apply(normalized);
+          }}
+        />
+        <button
+          disabled={busy || normalized === value}
+          onClick={() => apply(normalized)}
+        >
+          {busy ? "저장 중" : "저장"}
+        </button>
+      </div>
+      <nav aria-label={`${teamId}조 힌트코인 빠른 차감`}>
+        {[100, 300, 500].map((amount) => (
+          <button
+            disabled={busy || value < amount}
+            key={amount}
+            onClick={() => apply(value - amount)}
+          >
+            −{amount}
+          </button>
+        ))}
+        <button disabled={busy} onClick={() => apply(value + 100)}>
+          +100
+        </button>
+      </nav>
+    </div>
+  );
+}
+
 export function StaffDashboard({
   snapshot,
   refresh,
@@ -36,6 +99,7 @@ export function StaffDashboard({
   const prices = snapshot.market.prices;
   const [detailTeam, setDetailTeam] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hintCoinBusy, setHintCoinBusy] = useState<number | null>(null);
   const onlineCount = teams.filter((team) => team.online).length;
   const totalTrades = teams.reduce(
     (sum, team) =>
@@ -56,6 +120,28 @@ export function StaffDashboard({
     [teams],
   );
   const nextEvent = round < LAST_ROUND ? rounds[round + 1] : null;
+  const updateHintCoins = async (teamId: number, hintCoins: number) => {
+    setHintCoinBusy(teamId);
+    try {
+      const response = await apiFetch("/api/game/hint-coins", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId, hintCoins }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok)
+        throw new Error(data.error ?? "힌트코인을 변경하지 못했습니다.");
+      await refresh();
+    } catch (caught) {
+      window.alert(
+        caught instanceof Error
+          ? caught.message
+          : "힌트코인을 변경하지 못했습니다.",
+      );
+    } finally {
+      setHintCoinBusy(null);
+    }
+  };
   const advance = async () => {
     if (!window.confirm(`${round + 1}라운드 주가를 공개할까요?`)) return;
     setBusy(true);
@@ -151,7 +237,9 @@ export function StaffDashboard({
           <article>
             <span>진행 상태</span>
             <strong>{round === 0 ? "장 시작" : `${round}라운드`}</strong>
-            <small>{round}/10 진행</small>
+            <small>
+              {round}/{LAST_ROUND} 진행
+            </small>
           </article>
           <article>
             <span>참가 조 접속</span>
@@ -199,6 +287,7 @@ export function StaffDashboard({
                     <th>총 자산</th>
                     <th>수익률</th>
                     <th>현금</th>
+                    <th>힌트코인</th>
                     <th>거래</th>
                     <th>계정 작업</th>
                   </tr>
@@ -240,6 +329,15 @@ export function StaffDashboard({
                           </span>
                         </td>
                         <td>{money.format(team.cash)} BE</td>
+                        <td>
+                          <HintCoinEditor
+                            key={`${team.teamId}:${team.hintCoins}`}
+                            teamId={team.teamId}
+                            value={team.hintCoins}
+                            busy={hintCoinBusy === team.teamId}
+                            onUpdate={updateHintCoins}
+                          />
+                        </td>
                         <td>{activeTrades}건</td>
                         <td>
                           <div className="admin-row-actions">

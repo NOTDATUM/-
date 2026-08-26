@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     .bind(ticker, game.round)
     .first<{ price: number | null }>();
   const price = priceRow?.price ?? null;
-  if (game.round >= LAST_ROUND || price === null)
+  if (game.round >= LAST_ROUND || price === null || price <= 0)
     return Response.json(
       { error: "현재 거래할 수 없는 종목입니다." },
       { status: 400 },

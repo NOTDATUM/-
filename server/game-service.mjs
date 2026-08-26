@@ -45,7 +45,7 @@ export function createGameService({
   }
 
   function isStockTradable(ticker, round) {
-    return round < lastRound && getStockPrice(ticker, round) !== null;
+    return round < lastRound && (getStockPrice(ticker, round) ?? 0) > 0;
   }
 
   function gameSnapshot(session) {
@@ -53,7 +53,9 @@ export function createGameService({
       .prepare("SELECT round, started, updated_at FROM game_state WHERE id = 1")
       .get() ?? { round: 0, started: 0, updated_at: "" };
     const teams = db
-      .prepare("SELECT team_id, seed_money, cash FROM teams ORDER BY team_id")
+      .prepare(
+        "SELECT team_id, seed_money, cash, hint_coins FROM teams ORDER BY team_id",
+      )
       .all();
     const holdings = db
       .prepare(
@@ -111,6 +113,7 @@ export function createGameService({
         teamId: team.team_id,
         seedMoney: team.seed_money,
         cash: team.cash,
+        hintCoins: team.hint_coins,
         totalAsset: team.cash + stockValue,
         holdings: Object.fromEntries(
           teamHoldings.map((holding) => [holding.ticker, holding.shares]),
@@ -246,6 +249,41 @@ export function createGameService({
     });
   }
 
+  function updateHintCoins(teamId, hintCoins) {
+    if (
+      !Number.isInteger(teamId) ||
+      !Number.isInteger(hintCoins) ||
+      hintCoins < 0 ||
+      hintCoins > 1_000_000_000
+    ) {
+      throw new HttpError(400, "힌트코인 수량을 다시 확인해 주세요.");
+    }
+    return transaction(() => {
+      const team = db
+        .prepare("SELECT hint_coins FROM teams WHERE team_id = ?")
+        .get(teamId);
+      if (!team) throw new HttpError(404, "해당 조를 찾을 수 없습니다.");
+      db.prepare("UPDATE teams SET hint_coins = ? WHERE team_id = ?").run(
+        hintCoins,
+        teamId,
+      );
+      db.prepare(
+        "UPDATE game_state SET updated_at = CURRENT_TIMESTAMP WHERE id = 1",
+      ).run();
+      recordAdminAction(
+        "hint_coins_update",
+        `${teamId}조 힌트코인을 ${hintCoins}개로 변경했습니다.`,
+        {
+          teamId,
+          previousHintCoins: team.hint_coins,
+          hintCoins,
+          delta: hintCoins - team.hint_coins,
+        },
+      );
+      return { teamId, hintCoins };
+    });
+  }
+
   function startGame() {
     return transaction(() => {
       const game = db
@@ -264,7 +302,9 @@ export function createGameService({
   function resetGame() {
     transaction(() => {
       db.exec("DELETE FROM holdings; DELETE FROM trades;");
-      db.prepare("UPDATE teams SET seed_money = ?, cash = ?").run(
+      db.prepare(
+        "UPDATE teams SET seed_money = ?, cash = ?, hint_coins = 0",
+      ).run(
         defaultSeedMoney,
         defaultSeedMoney,
       );
@@ -303,7 +343,7 @@ export function createGameService({
           round < firstEditableRound ||
           round > lastRound ||
           (price !== null &&
-            (!Number.isInteger(price) || price < 1 || price > 100_000_000))
+            (!Number.isInteger(price) || price < 0 || price > 100_000_000))
         ) {
           throw new HttpError(
             400,
@@ -484,6 +524,7 @@ export function createGameService({
     gameSnapshot,
     setupGame,
     forceLogoutTeam,
+    updateHintCoins,
     startGame,
     resetGame,
     updateFuturePrices,

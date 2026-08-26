@@ -8,6 +8,7 @@ export function createRequestHandler({ http, sessions, game }) {
     gameSnapshot,
     setupGame,
     forceLogoutTeam,
+    updateHintCoins,
     startGame,
     resetGame,
     updateFuturePrices,
@@ -124,6 +125,18 @@ export function createRequestHandler({ http, sessions, game }) {
         const teamId = Number((await readJson(request)).teamId);
         forceLogoutTeam(teamId);
         sendJson(response, 200, { ok: true, teamId }, origin);
+        return;
+      }
+      if (pathname === "/api/game/hint-coins" && request.method === "POST") {
+        if (session.role !== "staff") {
+          throw new HttpError(403, "스태프 권한이 필요합니다.");
+        }
+        const body = await readJson(request);
+        const result = updateHintCoins(
+          Number(body.teamId),
+          Number(body.hintCoins),
+        );
+        sendJson(response, 200, { ok: true, ...result }, origin);
         return;
       }
       if (pathname === "/api/game/round" && request.method === "POST") {

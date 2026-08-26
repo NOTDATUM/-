@@ -278,6 +278,12 @@ export function TeamDashboard({
                 <span>시드머니</span>
                 <strong>{money.format(team.seedMoney)}</strong>
               </div>
+              <div className="client-hint-metric">
+                <span>힌트코인</span>
+                <strong>
+                  {money.format(team.hintCoins)} <em>COIN</em>
+                </strong>
+              </div>
             </div>
             <div className="client-holdings">
               {Object.entries(team.holdings)
