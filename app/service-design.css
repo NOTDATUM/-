@@ -3997,8 +3997,8 @@ input:disabled {
     min-height: 56px;
     grid-template-columns: 34px minmax(0, 1fr);
     grid-template-rows: auto auto;
-    gap: 2px 8px;
-    padding: 5px 7px;
+    gap: 1px 8px;
+    padding: 3px 7px;
     overflow: hidden;
   }
 
@@ -4016,20 +4016,20 @@ input:disabled {
   }
 
   .view-ranking-grid article > div strong {
-    font-size: 20px;
+    font-size: 19px;
     line-height: 1.05;
   }
 
   .view-ranking-grid article > div span {
-    height: 6px;
-    margin-top: 3px;
+    height: 5px;
+    margin-top: 1px;
   }
 
   .view-ranking-grid article > em {
     grid-column: 2;
     grid-row: 2;
     align-self: start;
-    font-size: 24px;
+    font-size: 23px;
     text-align: left;
   }
 

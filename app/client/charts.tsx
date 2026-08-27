@@ -167,8 +167,10 @@ export function AllStocksChart({
       const projectorLight = tone === "projector-light";
       const light = tone === "light" || tone === "projector-light";
       const narrowChart = width < 620;
+      const projectorNarrow = projector && width < 900;
+      const shortRoundLabels = narrowChart || projectorNarrow;
       const chartLabelSize = projector
-        ? narrowChart
+        ? projectorNarrow
           ? 20
           : Math.max(22, Math.min(26, width / 48))
         : width < 480
@@ -177,7 +179,7 @@ export function AllStocksChart({
       const pad = compact
         ? { top: 12, right: 10, bottom: 22, left: 10 }
         : projector
-          ? narrowChart
+          ? projectorNarrow
             ? { top: 38, right: 92, bottom: 56, left: 70 }
             : { top: 48, right: 142, bottom: 76, left: 116 }
           : { top: 31, right: 26, bottom: 46, left: 72 };
@@ -272,10 +274,10 @@ export function AllStocksChart({
           context.textAlign = "center";
           context.fillText(
             index === 0
-              ? narrowChart
+              ? shortRoundLabels
                 ? "기준"
                 : "기준가"
-              : narrowChart
+              : shortRoundLabels
                 ? `R${index}`
                 : `${index}라운드`,
             x(index),
@@ -372,7 +374,9 @@ export function AllStocksChart({
       });
 
       if (projector && !compact && endpointLabels.length > 0) {
-        const labelSize = narrowChart ? 16 : Math.max(19, chartLabelSize - 2);
+        const labelSize = projectorNarrow
+          ? 18
+          : Math.max(19, chartLabelSize - 2);
         const minGap = labelSize + 8;
         const minLabelY = pad.top + labelSize * 0.7;
         const maxLabelY = height - pad.bottom - labelSize * 0.25;
