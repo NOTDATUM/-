@@ -1,5 +1,33 @@
 import { DatabaseSync } from "node:sqlite";
 
+const tickerRenames = [
+  {
+    from: "VIRO",
+    to: "CBLS",
+    textReplacements: [
+      ["바이로베리타스", "큐비오랩스"],
+      ["바이오베리타스", "큐비오랩스"],
+      ["ViroVeritas", "Cubio Labs"],
+    ],
+  },
+  {
+    from: "SYNP",
+    to: "MCAT",
+    textReplacements: [
+      ["시냅스코어", "메디코호트"],
+      ["SynapseCore", "MediCohort"],
+    ],
+  },
+  {
+    from: "CELL",
+    to: "BRTE",
+    textReplacements: [
+      ["셀바이오제닉스", "블루루트"],
+      ["CellBiogenics", "BlueRoot"],
+    ],
+  },
+];
+
 const schema = `
   PRAGMA journal_mode = WAL;
   PRAGMA foreign_keys = ON;
@@ -72,6 +100,74 @@ function migrateLegacyDatabase(db) {
   }
 }
 
+function replaceAuditLogText(db, from, to) {
+  db.prepare(
+    "UPDATE admin_audit_logs SET summary = replace(summary, ?, ?) WHERE instr(summary, ?) > 0",
+  ).run(from, to, from);
+  db.prepare(
+    "UPDATE admin_audit_logs SET details = replace(details, ?, ?) WHERE details IS NOT NULL AND instr(details, ?) > 0",
+  ).run(from, to, from);
+}
+
+function migrateRenamedTickers(db) {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const rename of tickerRenames) {
+      const oldPriceCount = db
+        .prepare(
+          "SELECT COUNT(*) AS count FROM price_schedule WHERE ticker = ?",
+        )
+        .get(rename.from).count;
+      if (oldPriceCount > 0) {
+        db.prepare("DELETE FROM price_schedule WHERE ticker = ?").run(
+          rename.to,
+        );
+        db.prepare(
+          "UPDATE price_schedule SET ticker = ? WHERE ticker = ?",
+        ).run(rename.to, rename.from);
+      }
+
+      const oldHoldings = db
+        .prepare(
+          "SELECT team_id, shares FROM holdings WHERE ticker = ? ORDER BY team_id",
+        )
+        .all(rename.from);
+      for (const holding of oldHoldings) {
+        const target = db
+          .prepare(
+            "SELECT shares FROM holdings WHERE team_id = ? AND ticker = ?",
+          )
+          .get(holding.team_id, rename.to);
+        if (target) {
+          db.prepare(
+            "UPDATE holdings SET shares = ? WHERE team_id = ? AND ticker = ?",
+          ).run(target.shares + holding.shares, holding.team_id, rename.to);
+          db.prepare(
+            "DELETE FROM holdings WHERE team_id = ? AND ticker = ?",
+          ).run(holding.team_id, rename.from);
+        } else {
+          db.prepare(
+            "UPDATE holdings SET ticker = ? WHERE team_id = ? AND ticker = ?",
+          ).run(rename.to, holding.team_id, rename.from);
+        }
+      }
+
+      db.prepare("UPDATE trades SET ticker = ? WHERE ticker = ?").run(
+        rename.to,
+        rename.from,
+      );
+      replaceAuditLogText(db, rename.from, rename.to);
+      for (const [from, to] of rename.textReplacements) {
+        replaceAuditLogText(db, from, to);
+      }
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function seedTeams(db, defaultTeamCount) {
   const configuredTeamCount = db
     .prepare("SELECT COUNT(*) AS count FROM teams")
@@ -124,6 +220,7 @@ export function openGameDatabase({ databasePath, stocks, defaultTeamCount }) {
   const db = new DatabaseSync(databasePath);
   db.exec(schema);
   migrateLegacyDatabase(db);
+  migrateRenamedTickers(db);
   seedTeams(db, defaultTeamCount);
   seedPrices(db, stocks);
   return db;

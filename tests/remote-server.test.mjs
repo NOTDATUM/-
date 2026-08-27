@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -143,6 +143,140 @@ test("migrates an existing game database for cancellations and audit logs", asyn
       )
       .get();
     assert.equal(auditTable.name, "admin_audit_logs");
+    migratedDb.close();
+  } finally {
+    if (running) await stopServer(running.child).catch(() => undefined);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("renames company tickers while preserving saved prices and history", async () => {
+  const dataDir = await mkdtemp(resolve(tmpdir(), "be-ticker-migration-"));
+  const databasePath = resolve(dataDir, "be-game.sqlite");
+  const gameData = JSON.parse(
+    await readFile(resolve(projectRoot, "shared/game-data.json"), "utf8"),
+  );
+  const legacyTickers = { CBLS: "VIRO", MCAT: "SYNP", BRTE: "CELL" };
+  const legacyDb = new DatabaseSync(databasePath);
+  legacyDb.exec(`
+    CREATE TABLE price_schedule (
+      ticker TEXT NOT NULL,
+      round INTEGER NOT NULL,
+      price INTEGER,
+      PRIMARY KEY (ticker, round)
+    ) STRICT;
+    CREATE TABLE holdings (
+      team_id INTEGER NOT NULL,
+      ticker TEXT NOT NULL,
+      shares INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (team_id, ticker)
+    ) STRICT;
+    CREATE TABLE trades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id INTEGER NOT NULL,
+      ticker TEXT NOT NULL,
+      action TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      price INTEGER NOT NULL,
+      round INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      canceled_at TEXT
+    ) STRICT;
+    CREATE TABLE admin_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor TEXT NOT NULL DEFAULT 'staff',
+      action TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) STRICT;
+  `);
+  const insertPrice = legacyDb.prepare(
+    "INSERT INTO price_schedule (ticker, round, price) VALUES (?, ?, ?)",
+  );
+  for (const stock of gameData.stocks) {
+    stock.prices.forEach((price, round) => {
+      const ticker = legacyTickers[stock.ticker] ?? stock.ticker;
+      const savedPrice = stock.ticker === "CBLS" && round === 3 ? 777 : price;
+      insertPrice.run(ticker, round, savedPrice);
+    });
+  }
+  legacyDb
+    .prepare(
+      "INSERT INTO holdings (team_id, ticker, shares) VALUES (1, 'VIRO', 2), (1, 'SYNP', 3), (1, 'CELL', 4), (1, 'BRTE', 1)",
+    )
+    .run();
+  legacyDb
+    .prepare(
+      `INSERT INTO trades (team_id, ticker, action, quantity, price, round)
+       VALUES (1, 'VIRO', 'buy', 2, 148, 3),
+              (1, 'SYNP', 'buy', 3, 77, 3),
+              (1, 'CELL', 'buy', 4, 45, 3)`,
+    )
+    .run();
+  legacyDb
+    .prepare(
+      `INSERT INTO admin_audit_logs (actor, action, summary, details)
+       VALUES ('staff', 'trade_cancel', 'VIRO 바이로베리타스 거래를 확인했습니다.', '{"ticker":"VIRO","company":"ViroVeritas"}'),
+              ('staff', 'trade_cancel', 'SYNP 시냅스코어 거래를 확인했습니다.', '{"ticker":"SYNP","company":"SynapseCore"}'),
+              ('staff', 'trade_cancel', 'CELL 셀바이오제닉스 거래를 확인했습니다.', '{"ticker":"CELL","company":"CellBiogenics"}')`,
+    )
+    .run();
+  legacyDb.close();
+
+  const port = 46000 + Math.floor(Math.random() * 1000);
+  let running;
+  try {
+    running = await startServer(port, dataDir);
+    const staff = await login(running.baseUrl, "staff", staffPassword);
+    const response = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
+    const snapshot = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(snapshot.market.prices.CBLS[3], 777);
+    assert.deepEqual(
+      snapshot.market.prices.MCAT,
+      gameData.stocks.find((stock) => stock.ticker === "MCAT").prices,
+    );
+    assert.deepEqual(
+      snapshot.market.prices.BRTE,
+      gameData.stocks.find((stock) => stock.ticker === "BRTE").prices,
+    );
+    assert.equal(snapshot.market.prices.VIRO, undefined);
+    assert.equal(snapshot.teams[0].holdings.CBLS, 2);
+    assert.equal(snapshot.teams[0].holdings.MCAT, 3);
+    assert.equal(snapshot.teams[0].holdings.BRTE, 5);
+    assert.deepEqual(
+      snapshot.teams[0].trades.map((trade) => trade.ticker).sort(),
+      ["BRTE", "CBLS", "MCAT"],
+    );
+    assert.ok(
+      snapshot.auditLogs.every(
+        (log) =>
+          !/VIRO|SYNP|CELL|바이로베리타스|시냅스코어|셀바이오제닉스/.test(
+            `${log.summary} ${log.details ?? ""}`,
+          ),
+      ),
+    );
+
+    await stopServer(running.child);
+    running = null;
+    const migratedDb = new DatabaseSync(databasePath);
+    for (const table of ["price_schedule", "holdings", "trades"]) {
+      const oldRows = migratedDb
+        .prepare(
+          `SELECT COUNT(*) AS count FROM ${table} WHERE ticker IN ('VIRO', 'SYNP', 'CELL')`,
+        )
+        .get();
+      assert.equal(oldRows.count, 0);
+    }
+    assert.equal(
+      migratedDb
+        .prepare("SELECT price FROM price_schedule WHERE ticker = 'CBLS' AND round = 3")
+        .get().price,
+      777,
+    );
     migratedDb.close();
   } finally {
     if (running) await stopServer(running.child).catch(() => undefined);

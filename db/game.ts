@@ -1,6 +1,34 @@
 import { env } from "cloudflare:workers";
 import gameData from "../shared/game-data.json";
 
+const tickerRenames = [
+  {
+    from: "VIRO",
+    to: "CBLS",
+    textReplacements: [
+      ["바이로베리타스", "큐비오랩스"],
+      ["바이오베리타스", "큐비오랩스"],
+      ["ViroVeritas", "Cubio Labs"],
+    ],
+  },
+  {
+    from: "SYNP",
+    to: "MCAT",
+    textReplacements: [
+      ["시냅스코어", "메디코호트"],
+      ["SynapseCore", "MediCohort"],
+    ],
+  },
+  {
+    from: "CELL",
+    to: "BRTE",
+    textReplacements: [
+      ["셀바이오제닉스", "블루루트"],
+      ["CellBiogenics", "BlueRoot"],
+    ],
+  },
+];
+
 export function getGameDb() {
   if (!env.DB) throw new Error("게임 데이터베이스가 연결되지 않았습니다.");
   return env.DB;
@@ -80,6 +108,70 @@ export async function ensureGameSchema() {
         "ALTER TABLE teams ADD COLUMN hint_coins INTEGER NOT NULL DEFAULT 0",
       )
       .run();
+  }
+
+  for (const rename of tickerRenames) {
+    const oldPrices = await db
+      .prepare(
+        "SELECT COUNT(*) AS count FROM price_schedule WHERE ticker = ?",
+      )
+      .bind(rename.from)
+      .first<{ count: number }>();
+    if (oldPrices?.count) {
+      await db.batch([
+        db
+          .prepare("DELETE FROM price_schedule WHERE ticker = ?")
+          .bind(rename.to),
+        db
+          .prepare("UPDATE price_schedule SET ticker = ? WHERE ticker = ?")
+          .bind(rename.to, rename.from),
+      ]);
+    }
+
+    const oldHoldings = await db
+      .prepare(
+        "SELECT team_id, shares FROM holdings WHERE ticker = ? ORDER BY team_id",
+      )
+      .bind(rename.from)
+      .all<{ team_id: number; shares: number }>();
+    if (oldHoldings.results.length) {
+      await db.batch(
+        oldHoldings.results.map((holding) =>
+          db
+            .prepare(
+              `INSERT INTO holdings (team_id, ticker, shares) VALUES (?, ?, ?)
+               ON CONFLICT(team_id, ticker) DO UPDATE SET shares = holdings.shares + excluded.shares`,
+            )
+            .bind(holding.team_id, rename.to, holding.shares),
+        ),
+      );
+      await db
+        .prepare("DELETE FROM holdings WHERE ticker = ?")
+        .bind(rename.from)
+        .run();
+    }
+
+    await db
+      .prepare("UPDATE trades SET ticker = ? WHERE ticker = ?")
+      .bind(rename.to, rename.from)
+      .run();
+    for (const [from, to] of [
+      [rename.from, rename.to],
+      ...rename.textReplacements,
+    ]) {
+      await db.batch([
+        db
+          .prepare(
+            "UPDATE admin_audit_logs SET summary = replace(summary, ?, ?) WHERE instr(summary, ?) > 0",
+          )
+          .bind(from, to, from),
+        db
+          .prepare(
+            "UPDATE admin_audit_logs SET details = replace(details, ?, ?) WHERE details IS NOT NULL AND instr(details, ?) > 0",
+          )
+          .bind(from, to, from),
+      ]);
+    }
   }
 
   await db

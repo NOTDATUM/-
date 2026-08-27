@@ -62,13 +62,13 @@ type ChartViewport = { min: number; max: number; xMax: number };
 
 const lightChartColors: Record<string, string> = {
   IMMU: "#4f7800",
-  VIRO: "#006c8a",
+  CBLS: "#006c8a",
   PEPT: "#995300",
   GENO: "#5949a8",
-  SYNP: "#087763",
+  MCAT: "#087763",
   MICR: "#aa4610",
   CANC: "#b72d48",
-  CELL: "#155bad",
+  BRTE: "#155bad",
   VACC: "#91388f",
 };
 
