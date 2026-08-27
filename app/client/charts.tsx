@@ -180,7 +180,7 @@ export function AllStocksChart({
         ? { top: 12, right: 10, bottom: 22, left: 10 }
         : projector
           ? projectorNarrow
-            ? { top: 38, right: 92, bottom: 56, left: 70 }
+            ? { top: 38, right: 126, bottom: 56, left: 70 }
             : { top: 48, right: 142, bottom: 76, left: 116 }
           : { top: 31, right: 26, bottom: 46, left: 72 };
       const plotWidth = width - pad.left - pad.right;
@@ -407,7 +407,7 @@ export function AllStocksChart({
         context.textAlign = "left";
         context.textBaseline = "middle";
         labels.forEach((label) => {
-          const labelX = Math.min(label.x + 17, width - pad.right + 18);
+          const labelX = Math.min(label.x + 14, width - pad.right + 14);
           context.beginPath();
           context.moveTo(label.x + 7, label.y);
           context.lineTo(labelX - 6, label.labelY);
