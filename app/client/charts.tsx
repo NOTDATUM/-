@@ -169,8 +169,8 @@ export function AllStocksChart({
       const narrowChart = width < 620;
       const chartLabelSize = projector
         ? narrowChart
-          ? 14
-          : Math.max(18, Math.min(21, width / 68))
+          ? 20
+          : Math.max(22, Math.min(26, width / 48))
         : width < 480
           ? 11
           : 12;
@@ -178,8 +178,8 @@ export function AllStocksChart({
         ? { top: 12, right: 10, bottom: 22, left: 10 }
         : projector
           ? narrowChart
-            ? { top: 34, right: 16, bottom: 48, left: 58 }
-            : { top: 42, right: 34, bottom: 64, left: 96 }
+            ? { top: 38, right: 92, bottom: 56, left: 70 }
+            : { top: 48, right: 142, bottom: 76, left: 116 }
           : { top: 31, right: 26, bottom: 46, left: 72 };
       const plotWidth = width - pad.left - pad.right;
       const plotHeight = height - pad.top - pad.bottom;
@@ -214,7 +214,7 @@ export function AllStocksChart({
               : projector
                 ? "rgba(255,255,255,.2)"
                 : "rgba(255,255,255,.07)";
-          context.lineWidth = projector ? 1.4 : 1;
+          context.lineWidth = projector ? 2 : 1;
           context.beginPath();
           context.moveTo(pad.left, py);
           context.lineTo(width - pad.right, py);
@@ -231,7 +231,7 @@ export function AllStocksChart({
           context.fillText(
             money.format(Math.round(value)),
             pad.left - 11,
-            py + (projector ? 6 : 4),
+            py + (projector ? chartLabelSize * 0.32 : 4),
           );
         }
         context.strokeStyle =
@@ -242,7 +242,7 @@ export function AllStocksChart({
             : projector
               ? "rgba(255,255,255,.42)"
               : "rgba(255,255,255,.12)";
-        context.lineWidth = projector ? 1.8 : 1;
+        context.lineWidth = projector ? 2.6 : 1;
         context.beginPath();
         context.moveTo(pad.left, pad.top);
         context.lineTo(pad.left, height - pad.bottom);
@@ -279,10 +279,18 @@ export function AllStocksChart({
                 ? `R${index}`
                 : `${index}라운드`,
             x(index),
-            height - (projector ? 17 : 13),
+            height - (projector ? 21 : 13),
           );
         }
       }
+
+      const endpointLabels: Array<{
+        color: string;
+        ticker: string;
+        value: number;
+        x: number;
+        y: number;
+      }> = [];
 
       visibleStocks.forEach((stock, stockIndex) => {
         const points = (prices[stock.ticker] ?? stock.prices)
@@ -310,7 +318,7 @@ export function AllStocksChart({
         });
         const seriesColor = light ? lightChartColors[stock.ticker] : stock.color;
         context.strokeStyle = seriesColor;
-        context.lineWidth = compact ? 1.4 : projector ? 3.6 : 2.2;
+        context.lineWidth = compact ? 1.4 : projector ? 5.2 : 2.2;
         context.lineJoin = "round";
         context.lineCap = "round";
         context.setLineDash(
@@ -332,7 +340,8 @@ export function AllStocksChart({
         context.arc(
           x(last.index),
           y(last.value),
-          (compact ? 2 : 3.2) + pulse * (compact ? 1 : 2),
+          (compact ? 2 : projector ? 5.5 : 3.2) +
+            pulse * (compact ? 1 : projector ? 2.5 : 2),
           0,
           Math.PI * 2,
         );
@@ -340,6 +349,15 @@ export function AllStocksChart({
         context.globalAlpha = entering ? Math.max(0.15, reveal) : 1;
         context.fill();
         context.restore();
+        if (projector && !compact) {
+          endpointLabels.push({
+            color: seriesColor,
+            ticker: stock.ticker,
+            value: last.value,
+            x: x(last.index),
+            y: y(last.value),
+          });
+        }
         if (!compact && selectedTicker === stock.ticker) {
           context.fillStyle = seriesColor;
           context.font =
@@ -352,6 +370,60 @@ export function AllStocksChart({
           );
         }
       });
+
+      if (projector && !compact && endpointLabels.length > 0) {
+        const labelSize = narrowChart ? 16 : Math.max(19, chartLabelSize - 2);
+        const minGap = labelSize + 8;
+        const minLabelY = pad.top + labelSize * 0.7;
+        const maxLabelY = height - pad.bottom - labelSize * 0.25;
+        const labels = endpointLabels
+          .sort((left, right) => left.y - right.y)
+          .map((label) => ({
+            ...label,
+            labelY: Math.max(minLabelY, Math.min(maxLabelY, label.y)),
+          }));
+
+        for (let index = 1; index < labels.length; index += 1) {
+          labels[index].labelY = Math.max(
+            labels[index].labelY,
+            labels[index - 1].labelY + minGap,
+          );
+        }
+        if (labels.at(-1)!.labelY > maxLabelY) {
+          labels[labels.length - 1].labelY = maxLabelY;
+          for (let index = labels.length - 2; index >= 0; index -= 1) {
+            labels[index].labelY = Math.min(
+              labels[index].labelY,
+              labels[index + 1].labelY - minGap,
+            );
+          }
+        }
+
+        context.font = `780 ${labelSize}px "Pretendard Variable", Pretendard, "Noto Sans KR", sans-serif`;
+        context.textAlign = "left";
+        context.textBaseline = "middle";
+        labels.forEach((label) => {
+          const labelX = Math.min(label.x + 17, width - pad.right + 18);
+          context.beginPath();
+          context.moveTo(label.x + 7, label.y);
+          context.lineTo(labelX - 6, label.labelY);
+          context.strokeStyle = label.color;
+          context.globalAlpha = 0.72;
+          context.lineWidth = 2;
+          context.stroke();
+          context.globalAlpha = 1;
+          const text = `${label.ticker} ${money.format(Math.round(label.value))}`;
+          context.lineJoin = "round";
+          context.strokeStyle = projectorLight
+            ? "rgba(255,255,255,.96)"
+            : "rgba(8,13,18,.94)";
+          context.lineWidth = 5;
+          context.strokeText(text, labelX, label.labelY);
+          context.fillStyle = label.color;
+          context.fillText(text, labelX, label.labelY);
+        });
+        context.textBaseline = "alphabetic";
+      }
     },
     [round, compact, lineStyle, prices, selectedTicker, tone, visibleStocks],
   );

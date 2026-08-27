@@ -119,15 +119,18 @@ test("keeps the public view legible on a projector", async () => {
     "utf8",
   );
 
-  assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(36px, 3vw, 46px\)/);
-  assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
-  assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 780 22px/);
-  assert.match(css, /\.view-reference p \{[^}]*font-size: 14px/);
+  assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(44px, 3vw, 54px\)/);
+  assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 790 30px/);
+  assert.match(css, /\.view-reference p[^}]*\{[^}]*font-size: 20px/);
+  assert.match(css, /\.view-baseline-board \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(max-width: 1179px\)/);
   assert.match(css, /\.view-shell,[^}]*\.view-shell\.theme-light \{[^}]*height: auto/);
   assert.match(css, /@media \(min-width: 900px\) and \(max-width: 1179px\)/);
-  assert.match(css, /grid-template-columns: minmax\(0, 1\.35fr\) minmax\(340px, 0\.65fr\)/);
-  assert.match(charts, /Math\.max\(18, Math\.min\(21, width \/ 68\)\)/);
+  assert.match(css, /grid-template-columns: minmax\(0, 1\.35fr\) minmax\(360px, 0\.8fr\)/);
+  assert.match(charts, /Math\.max\(22, Math\.min\(26, width \/ 48\)\)/);
+  assert.match(charts, /projector \? 5\.2/);
+  assert.match(charts, /endpointLabels/);
   assert.match(charts, /narrowChart/);
   assert.match(charts, /projectorLight/);
   assert.match(charts, /lightChartColors/);

@@ -234,35 +234,56 @@ export function ViewDashboard({
       <section className="view-dashboard-grid">
         <section className="view-market-card">
           <header>
-            <div className="view-section-heading">
-              <span className="eyebrow">전체 종목 현황</span>
-              <h2>전체 종목 주가 흐름</h2>
-            </div>
-            <span>2초마다 서버 상태 갱신</span>
+            <h2>{round === 0 ? "전체 종목 기준가" : "전체 종목 주가 흐름"}</h2>
           </header>
-          <AllStocksChart
-            round={round}
-            prices={prices}
-            tone={viewTheme === "light" ? "projector-light" : "projector"}
-            lineStyle="solid"
-            showScaleBadge={false}
-          />
-          <div className="view-chart-legend" aria-label="종목 색상 범례">
-            {stocks.map((stock) => (
-              <span key={stock.ticker}>
-                <i style={{ background: stock.color }} />
-                <strong>{stock.name}</strong>
-                <small>{stock.ticker}</small>
-              </span>
-            ))}
-          </div>
+          {round === 0 ? (
+            <div
+              className="view-baseline-board"
+              role="list"
+              aria-label="전체 종목 기준가"
+            >
+              {stocks.map((stock) => {
+                const price = (prices[stock.ticker] ?? stock.prices)[0];
+                return (
+                  <article
+                    key={stock.ticker}
+                    role="listitem"
+                    aria-label={`${stock.name} ${stock.ticker}, ${price === null ? "공개 전" : `기준가 ${price} BE`}`}
+                  >
+                    <i style={{ background: stock.color }} aria-hidden="true" />
+                    <div>
+                      <strong>{stock.ticker}</strong>
+                      <span>{stock.name}</span>
+                    </div>
+                    <em>{price === null ? "공개 전" : `${price.toLocaleString("ko-KR")} BE`}</em>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <AllStocksChart
+                round={round}
+                prices={prices}
+                tone={viewTheme === "light" ? "projector-light" : "projector"}
+                lineStyle="solid"
+                showScaleBadge={false}
+              />
+              <div className="view-chart-legend" aria-label="종목 색상 범례">
+                {stocks.map((stock) => (
+                  <span key={stock.ticker}>
+                    <i style={{ background: stock.color }} />
+                    <strong>{stock.ticker}</strong>
+                    <small>{stock.name}</small>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </section>
         <aside className="view-ranking-card">
-          <header className="view-ranking-heading">
-            <div className="view-ranking-title view-section-heading">
-              <span className="eyebrow">참가 조 현황</span>
-              <h2>조별 누적 수익률</h2>
-            </div>
+          <header>
+            <h2>조별 누적 수익률</h2>
           </header>
           <div
             className="view-ranking-grid"
@@ -305,12 +326,11 @@ export function ViewDashboard({
               </article>
             ))}
           </div>
-          <section className="view-reference">
-            <span>진행 참고</span>
-            <strong>이번 라운드 참고 정보</strong>
-            <p>{brief.note}</p>
-          </section>
         </aside>
+        <section className="view-reference" aria-label="이번 라운드 참고 정보">
+          <strong>이번 라운드 참고 정보</strong>
+          <p>{brief.note}</p>
+        </section>
       </section>
     </main>
   );
