@@ -107,6 +107,15 @@ test("uses a responsive service design system for participant and staff screens"
   assert.match(teamDashboard, /showScaleBadge=\{false\}/);
   assert.match(teamDashboard, /client-recent-summary/);
   assert.doesNotMatch(teamDashboard, />시장 흐름</);
+  assert.match(teamDashboard, /보유 주식 최대 수량 입력/);
+  assert.match(teamDashboard, /매수 가능한 최대 수량 입력/);
+  assert.match(teamDashboard, /setQuantity\(maxSellQuantity\)/);
+  assert.match(teamDashboard, /setQuantity\(maxBuyQuantity\)/);
+  assert.doesNotMatch(teamDashboard, /setQuantity\(maxOrderQuantity\)/);
+  assert.match(
+    css,
+    /\.client-quick-quantity \{[^}]*grid-template-columns: repeat\(5,\s*minmax\(0,\s*1fr\)\)/,
+  );
 });
 
 test("keeps the public view legible on a projector", async () => {

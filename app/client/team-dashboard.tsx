@@ -458,14 +458,28 @@ export function TeamDashboard({
                 </button>
               ))}
               <button
+                aria-label="보유 주식 최대 수량 입력"
+                className="sell-maximum"
                 disabled={
                   busy ||
-                  maxOrderQuantity < 1 ||
-                  orderQuantity >= maxOrderQuantity
+                  maxSellQuantity < 1 ||
+                  orderQuantity === maxSellQuantity
                 }
-                onClick={() => setQuantity(maxOrderQuantity)}
+                onClick={() => setQuantity(maxSellQuantity)}
               >
-                최대
+                매도 최대
+              </button>
+              <button
+                aria-label="매수 가능한 최대 수량 입력"
+                className="buy-maximum"
+                disabled={
+                  busy ||
+                  maxBuyQuantity < 1 ||
+                  orderQuantity === maxBuyQuantity
+                }
+                onClick={() => setQuantity(maxBuyQuantity)}
+              >
+                매수 최대
               </button>
             </div>
             <div className="client-order-total">

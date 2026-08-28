@@ -1313,6 +1313,7 @@ input:disabled {
 }
 
 .client-quick-quantity {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   margin-top: 7px;
 }
@@ -1320,11 +1321,14 @@ input:disabled {
 .client-quick-quantity button,
 .toss-client.theme-dark .client-quick-quantity button {
   min-height: 38px;
+  min-width: 0;
+  padding: 0 4px;
   border: 1px solid var(--client-border);
   border-radius: var(--radius-control);
   background: var(--client-surface-soft);
   color: var(--client-text-secondary);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .client-quantity button:disabled,
