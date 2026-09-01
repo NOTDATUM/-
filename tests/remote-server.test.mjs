@@ -371,9 +371,16 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(preparedData.teams[0].hintCoins, 0);
     assert.equal(preparedData.teams[0].online, false);
     assert.equal(preparedData.teams[0].lastSeenAt, null);
-    assert.equal(preparedData.market.prices.VACC.length, 8);
-    assert.equal(preparedData.market.prices.VACC[2], 80);
-    assert.equal(preparedData.market.prices.VACC[7], 0);
+    assert.deepEqual(preparedData.market.prices.VACC, [
+      null,
+      null,
+      null,
+      50,
+      91,
+      78,
+      36,
+      37,
+    ]);
 
     const preparedViewSnapshot = await api(running.baseUrl, "/api/game", {
       token: view.token,
