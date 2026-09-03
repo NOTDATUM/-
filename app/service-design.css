@@ -5374,6 +5374,12 @@ input:disabled {
   border-color: var(--view-accent);
 }
 
+.view-ranking-launchers button:disabled,
+.view-shell.theme-light .view-ranking-launchers button:disabled {
+  opacity: 0.48;
+  cursor: wait;
+}
+
 .view-ranking-launchers button > span,
 .view-shell.theme-light .view-ranking-launchers button > span {
   grid-column: 1;

@@ -35,9 +35,29 @@ export function ViewDashboard({
   snapshot: Snapshot;
   onLogout: () => void;
 }) {
-  const teams = useMemo(
+  const rawTeams = useMemo(
     () => (snapshot.teams ?? []).filter(isViewTeamPerformance),
     [snapshot.teams],
+  );
+  const rankingDataReady = rawTeams.every(
+    (team) =>
+      Number.isFinite(team.roundReturnRate) &&
+      Number.isInteger(team.assetRank) &&
+      team.assetRank > 0,
+  );
+  const teams = useMemo(
+    () =>
+      rawTeams.map((team, index) => ({
+        ...team,
+        roundReturnRate: Number.isFinite(team.roundReturnRate)
+          ? team.roundReturnRate
+          : 0,
+        assetRank:
+          Number.isInteger(team.assetRank) && team.assetRank > 0
+            ? team.assetRank
+            : index + 1,
+      })),
+    [rawTeams],
   );
   const round = snapshot.game.round;
   const prices = snapshot.market.prices;
@@ -465,7 +485,11 @@ export function ViewDashboard({
           <header>
             <div className="view-ranking-heading">
               <span className="eyebrow">
-                {round === 0 ? "기준 시점" : `ROUND ${round}`}
+                {!rankingDataReady
+                  ? "순위 동기화 중"
+                  : round === 0
+                    ? "기준 시점"
+                    : `ROUND ${round}`}
               </span>
               <h2>
                 {round === 0
@@ -476,6 +500,7 @@ export function ViewDashboard({
             <div className="view-ranking-launchers" aria-label="전체 순위 화면">
               <button
                 type="button"
+                disabled={!rankingDataReady}
                 onClick={() => openRankingWindow("cumulative")}
               >
                 <span>전체 누적</span>
@@ -484,6 +509,7 @@ export function ViewDashboard({
               </button>
               <button
                 type="button"
+                disabled={!rankingDataReady}
                 onClick={() => openRankingWindow("assets")}
               >
                 <span>금액 비공개</span>
