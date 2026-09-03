@@ -9,7 +9,24 @@ import {
   isViewTeamPerformance,
   type ClientTheme,
   type Snapshot,
+  type ViewTeamPerformance,
 } from "./types";
+
+type RankingWindow = "cumulative" | "assets";
+
+function signedRate(value: number, fractionDigits = 1) {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(fractionDigits)}%`;
+}
+
+function sortByRate(
+  teams: ViewTeamPerformance[],
+  key: "returnRate" | "roundReturnRate",
+) {
+  return [...teams].sort(
+    (left, right) =>
+      right[key] - left[key] || left.teamId - right.teamId,
+  );
+}
 
 export function ViewDashboard({
   snapshot,
@@ -26,10 +43,13 @@ export function ViewDashboard({
   const prices = snapshot.market.prices;
   const [fullscreen, setFullscreen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [rankingWindow, setRankingWindow] =
+    useState<RankingWindow | null>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLElement>(null);
   const menuCloseRef = useRef<HTMLButtonElement>(null);
   const menuWasOpenRef = useRef(false);
+  const rankingDialogRef = useRef<HTMLDialogElement>(null);
   const [viewTheme, setViewTheme] = useState<ClientTheme>(() => {
     if (typeof window === "undefined") return "dark";
     const savedTheme = window.localStorage.getItem(VIEW_THEME_KEY);
@@ -89,14 +109,36 @@ export function ViewDashboard({
     document.addEventListener("keydown", handleMenuTab);
     return () => document.removeEventListener("keydown", handleMenuTab);
   }, [menuOpen]);
-  const standings = useMemo(
-    () => [...teams].sort((left, right) => right.returnRate - left.returnRate),
+  useEffect(() => {
+    const dialog = rankingDialogRef.current;
+    if (!dialog) return;
+    if (rankingWindow && !dialog.open) dialog.showModal();
+    if (!rankingWindow && dialog.open) dialog.close();
+  }, [rankingWindow]);
+  const roundStandings = useMemo(
+    () => sortByRate(teams, "roundReturnRate"),
+    [teams],
+  );
+  const cumulativeStandings = useMemo(
+    () => sortByRate(teams, "returnRate"),
+    [teams],
+  );
+  const assetStandings = useMemo(
+    () =>
+      [...teams].sort(
+        (left, right) =>
+          left.assetRank - right.assetRank || left.teamId - right.teamId,
+      ),
     [teams],
   );
   const brief = viewRoundBriefs[round];
-  const maxReturn = Math.max(
+  const maxRoundReturn = Math.max(
     1,
-    ...standings.map((team) => Math.abs(team.returnRate)),
+    ...roundStandings.map((team) => Math.abs(team.roundReturnRate)),
+  );
+  const maxCumulativeReturn = Math.max(
+    1,
+    ...cumulativeStandings.map((team) => Math.abs(team.returnRate)),
   );
   const toggleFullscreen = async () => {
     if (document.fullscreenElement) await document.exitFullscreen();
@@ -111,6 +153,12 @@ export function ViewDashboard({
     });
     setMenuOpen(false);
   };
+  const openRankingWindow = (window: RankingWindow) => {
+    setMenuOpen(false);
+    setRankingWindow(window);
+  };
+  const rankingTeams =
+    rankingWindow === "assets" ? assetStandings : cumulativeStandings;
   return (
     <main
       id="main-content"
@@ -199,6 +247,138 @@ export function ViewDashboard({
           </div>
         </header>
       )}
+      <dialog
+        ref={rankingDialogRef}
+        className="view-rank-dialog"
+        aria-labelledby="view-rank-dialog-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          setRankingWindow(null);
+        }}
+        onClose={() => setRankingWindow(null)}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) setRankingWindow(null);
+        }}
+      >
+        {rankingWindow && (
+          <section className="view-rank-window">
+            <header className="view-rank-window-header">
+              <div>
+                <span>
+                  실시간 순위 · {round === 0 ? "기준 시점" : `${round}라운드`}
+                </span>
+                <h2 id="view-rank-dialog-title">
+                  {rankingWindow === "cumulative"
+                    ? "전체 누적 수익률 순위"
+                    : "전체 자산 순위"}
+                </h2>
+                <p>
+                  {rankingWindow === "cumulative"
+                    ? "시드머니 대비 현재까지의 실제 누적 수익률입니다."
+                    : "총자산이 높은 순서만 공개하며 실제 BE 금액은 표시하지 않습니다."}
+                </p>
+              </div>
+              <div className="view-rank-window-actions">
+                <nav aria-label="순위 화면 전환">
+                  <button
+                    type="button"
+                    className={
+                      rankingWindow === "cumulative" ? "selected" : ""
+                    }
+                    aria-pressed={rankingWindow === "cumulative"}
+                    onClick={() => setRankingWindow("cumulative")}
+                  >
+                    누적 수익률
+                  </button>
+                  <button
+                    type="button"
+                    className={rankingWindow === "assets" ? "selected" : ""}
+                    aria-pressed={rankingWindow === "assets"}
+                    onClick={() => setRankingWindow("assets")}
+                  >
+                    전체 자산
+                  </button>
+                </nav>
+                <button
+                  type="button"
+                  className="view-rank-window-close"
+                  onClick={() => setRankingWindow(null)}
+                >
+                  공용 화면으로 돌아가기
+                  <span aria-hidden="true">×</span>
+                </button>
+              </div>
+            </header>
+            <ol
+              className={`view-rank-board ${rankingWindow === "assets" ? "assets" : "cumulative"}`}
+              aria-label={
+                rankingWindow === "cumulative"
+                  ? "전체 누적 수익률 순위"
+                  : "전체 자산 순위, 자산 금액 비공개"
+              }
+            >
+              {rankingTeams.map((team, index) => {
+                const displayRank =
+                  rankingWindow === "assets" ? team.assetRank : index + 1;
+                return (
+                  <li
+                    key={team.teamId}
+                    className={
+                      displayRank <= 3 ? `rank-${displayRank}` : undefined
+                    }
+                    aria-label={
+                      rankingWindow === "cumulative"
+                        ? `${displayRank}위, ${team.teamId}조, 누적 수익률 ${signedRate(team.returnRate, 2)}`
+                        : `${displayRank}위, ${team.teamId}조, 자산 금액 비공개`
+                    }
+                  >
+                    <span className="view-rank-position">
+                      <strong>{displayRank}</strong>
+                      <small>위</small>
+                    </span>
+                    <div className="view-rank-team">
+                      <strong>{team.teamId}조</strong>
+                      <span>
+                        {rankingWindow === "cumulative"
+                          ? "누적 수익률"
+                          : "총자산 순위"}
+                      </span>
+                    </div>
+                    {rankingWindow === "cumulative" ? (
+                      <div className="view-rank-result">
+                        <em
+                          className={team.returnRate >= 0 ? "up" : "down"}
+                        >
+                          {signedRate(team.returnRate, 2)}
+                        </em>
+                        <span aria-hidden="true">
+                          <b
+                            className={
+                              team.returnRate >= 0 ? "positive" : "negative"
+                            }
+                            style={{
+                              width: `${team.returnRate === 0 ? 0 : Math.max(4, (Math.abs(team.returnRate) / maxCumulativeReturn) * 100)}%`,
+                            }}
+                          />
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="view-rank-private" aria-hidden="true">
+                        <span>비공개</span>
+                        <strong>BE 금액 비공개</strong>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+            <footer>
+              <span aria-hidden="true" />
+              게임 서버의 최신 기록을 2초마다 반영합니다.
+            </footer>
+          </section>
+        )}
+      </dialog>
       <section
         className="view-event-banner"
         key={`${snapshot.game.started}-${round}`}
@@ -283,45 +463,77 @@ export function ViewDashboard({
         </section>
         <aside className="view-ranking-card">
           <header>
-            <h2>조별 누적 수익률</h2>
+            <div className="view-ranking-heading">
+              <span className="eyebrow">
+                {round === 0 ? "기준 시점" : `ROUND ${round}`}
+              </span>
+              <h2>
+                {round === 0
+                  ? "조별 기준 수익률"
+                  : `${round}라운드 단회 수익률`}
+              </h2>
+            </div>
+            <div className="view-ranking-launchers" aria-label="전체 순위 화면">
+              <button
+                type="button"
+                onClick={() => openRankingWindow("cumulative")}
+              >
+                <span>전체 누적</span>
+                <strong>수익률 순위</strong>
+                <i aria-hidden="true">↗</i>
+              </button>
+              <button
+                type="button"
+                onClick={() => openRankingWindow("assets")}
+              >
+                <span>금액 비공개</span>
+                <strong>총자산 순위</strong>
+                <i aria-hidden="true">↗</i>
+              </button>
+            </div>
           </header>
           <div
             className="view-ranking-grid"
             role="list"
-            aria-label="조별 수익률 순위"
+            aria-label={
+              round === 0
+                ? "조별 기준 수익률 순위"
+                : `${round}라운드 단회 수익률 순위`
+            }
           >
-            {standings.map((team, index) => (
+            {roundStandings.map((team, index) => (
               <article
                 key={team.teamId}
                 role="listitem"
-                aria-label={`${index + 1}위, ${team.teamId}조, 누적 수익률 ${team.returnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.returnRate).toFixed(1)}퍼센트`}
+                aria-label={`${index + 1}위, ${team.teamId}조, ${round === 0 ? "기준" : `${round}라운드 단회`} 수익률 ${team.roundReturnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.roundReturnRate).toFixed(1)}퍼센트`}
               >
                 <i aria-hidden="true">{index + 1}</i>
                 <div>
                   <strong>{team.teamId}조</strong>
                   <span
                     role="meter"
-                    aria-label={`${team.teamId}조 수익률 크기`}
+                    aria-label={`${team.teamId}조 단회 수익률 크기`}
                     aria-valuemin={0}
-                    aria-valuemax={maxReturn}
-                    aria-valuenow={Math.abs(team.returnRate)}
-                    aria-valuetext={`누적 수익률 ${team.returnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.returnRate).toFixed(1)}퍼센트`}
+                    aria-valuemax={maxRoundReturn}
+                    aria-valuenow={Math.abs(team.roundReturnRate)}
+                    aria-valuetext={`단회 수익률 ${team.roundReturnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.roundReturnRate).toFixed(1)}퍼센트`}
                   >
                     <b
                       aria-hidden="true"
                       style={{
-                        width: `${team.returnRate === 0 ? 0 : Math.max(3, (Math.abs(team.returnRate) / maxReturn) * 100)}%`,
+                        width: `${team.roundReturnRate === 0 ? 0 : Math.max(3, (Math.abs(team.roundReturnRate) / maxRoundReturn) * 100)}%`,
                       }}
-                      className={team.returnRate >= 0 ? "positive" : "negative"}
+                      className={
+                        team.roundReturnRate >= 0 ? "positive" : "negative"
+                      }
                     />
                   </span>
                 </div>
                 <em
-                  className={team.returnRate >= 0 ? "up" : "down"}
+                  className={team.roundReturnRate >= 0 ? "up" : "down"}
                   aria-hidden="true"
                 >
-                  {team.returnRate >= 0 ? "+" : ""}
-                  {team.returnRate.toFixed(1)}%
+                  {signedRate(team.roundReturnRate)}
                 </em>
               </article>
             ))}

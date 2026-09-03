@@ -29,7 +29,10 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /운영 관리 콘솔/);
   assert.match(page, /참가 조 관리/);
   assert.match(page, /현재 라운드 주요 공지/);
-  assert.match(page, /조별 누적 수익률/);
+  assert.match(page, /라운드 단회 수익률/);
+  assert.match(page, /전체 누적 수익률 순위/);
+  assert.match(page, /전체 자산 순위/);
+  assert.match(page, /BE 금액 비공개/);
   assert.match(page, /이번 라운드 참고 정보/);
   assert.doesNotMatch(page, /실제 자산은 공개하지 않음/);
   assert.match(page, /화면 메뉴/);
@@ -133,6 +136,8 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 790 30px/);
   assert.match(css, /\.view-reference p[^}]*\{[^}]*font-size: 20px/);
   assert.match(css, /\.view-baseline-board \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-rank-dialog,/);
+  assert.match(css, /\.view-rank-board \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(max-width: 1179px\)/);
   assert.match(css, /\.view-shell,[^}]*\.view-shell\.theme-light \{[^}]*height: auto/);
   assert.match(css, /@media \(min-width: 900px\) and \(max-width: 1179px\)/);

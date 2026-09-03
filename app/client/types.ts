@@ -31,6 +31,8 @@ export type TeamView = {
 export type ViewTeamPerformance = {
   teamId: number;
   returnRate: number;
+  roundReturnRate: number;
+  assetRank: number;
 };
 
 export type AdminAuditLog = {

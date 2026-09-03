@@ -25,6 +25,10 @@ type TradeRow = {
   created_at: string;
   canceled_at: string | null;
 };
+type ActiveRoundTradeRow = Pick<
+  TradeRow,
+  "team_id" | "ticker" | "action" | "quantity" | "price"
+>;
 type PriceRow = { ticker: string; round: number; price: number | null };
 type PresenceRow = {
   team_id: number;
@@ -94,8 +98,18 @@ export async function GET() {
       : Promise.resolve({ results: [] as AuditRow[] }),
   ]);
   const game = gameResult ?? { round: 0, started: 0, updated_at: "" };
+  const activeRoundTradeResult =
+    game.round > 0
+      ? await db
+          .prepare(
+            "SELECT team_id, ticker, action, quantity, price FROM trades WHERE round = ? AND canceled_at IS NULL ORDER BY id",
+          )
+          .bind(game.round)
+          .all<ActiveRoundTradeRow>()
+      : { results: [] as ActiveRoundTradeRow[] };
   const holdings = holdingResult.results ?? [];
   const trades = tradeResult.results ?? [];
+  const activeRoundTrades = activeRoundTradeResult.results ?? [];
   const priceRows = priceResult.results ?? [];
   const presenceRows = presenceResult.results ?? [];
   const fullPrices: PriceSchedule = Object.fromEntries(
@@ -143,6 +157,60 @@ export async function GET() {
           ?.last_seen_at ?? null,
     };
   });
+  const assetRankByTeam = new Map<number, number>();
+  let previousAsset: number | null = null;
+  let previousRank = 0;
+  [...teamViews]
+    .sort(
+      (left, right) =>
+        right.totalAsset - left.totalAsset || left.teamId - right.teamId,
+    )
+    .forEach((team, index) => {
+      if (team.totalAsset !== previousAsset) previousRank = index + 1;
+      assetRankByTeam.set(team.teamId, previousRank);
+      previousAsset = team.totalAsset;
+    });
+  const viewPerformance = teamViews.map(
+    ({ teamId, seedMoney, cash, totalAsset, holdings: teamHoldings }) => {
+      const holdingsBeforeRound = { ...teamHoldings };
+      let cashBeforeRound = cash;
+      for (const trade of activeRoundTrades) {
+        if (trade.team_id !== teamId) continue;
+        const quantityChange = trade.action === "buy" ? -1 : 1;
+        const cashChange = trade.action === "buy" ? 1 : -1;
+        holdingsBeforeRound[trade.ticker] =
+          (holdingsBeforeRound[trade.ticker] ?? 0) +
+          quantityChange * trade.quantity;
+        cashBeforeRound += cashChange * trade.quantity * trade.price;
+      }
+      const previousRoundAsset =
+        game.round > 0
+          ? Object.entries(holdingsBeforeRound).reduce(
+              (sum, [ticker, shares]) =>
+                sum +
+                shares * (getStockPrice(ticker, game.round - 1, fullPrices) ?? 0),
+              cashBeforeRound,
+            )
+          : totalAsset;
+      const roundReturnRate =
+        game.round > 0 && previousRoundAsset > 0
+          ? Math.round(
+              ((totalAsset - previousRoundAsset) / previousRoundAsset) *
+                100 *
+                100,
+            ) / 100
+          : 0;
+      return {
+        teamId,
+        returnRate: seedMoney
+          ? Math.round(((totalAsset - seedMoney) / seedMoney) * 100 * 100) /
+            100
+          : 0,
+        roundReturnRate,
+        assetRank: assetRankByTeam.get(teamId) ?? teamViews.length,
+      };
+    },
+  );
   const response = {
     session: publicGameSession(session),
     game: {
@@ -171,14 +239,7 @@ export async function GET() {
       session.role === "staff"
         ? teamViews
         : session.role === "view"
-          ? teamViews.map(({ teamId, seedMoney, totalAsset }) => ({
-              teamId,
-              returnRate: seedMoney
-                ? Math.round(
-                    ((totalAsset - seedMoney) / seedMoney) * 100 * 100,
-                  ) / 100
-                : 0,
-            }))
+          ? viewPerformance
           : null,
     auditLogs:
       session.role === "staff"

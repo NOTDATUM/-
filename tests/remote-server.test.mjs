@@ -333,6 +333,100 @@ test("game reset clears audit logs while preserving the saved price scenario", a
   }
 });
 
+test("reports single-round returns and asset ranks to the public view without leaking assets", async () => {
+  const dataDir = await mkdtemp(resolve(tmpdir(), "be-view-ranking-"));
+  const port = 42000 + Math.floor(Math.random() * 1000);
+  let running;
+  try {
+    running = await startServer(port, dataDir);
+    const staff = await login(running.baseUrl, "staff", staffPassword);
+    const view = await login(running.baseUrl, "view", viewPassword);
+    const teamOne = await login(running.baseUrl, "1", teamPassword);
+
+    await api(running.baseUrl, "/api/game/setup", {
+      method: "POST",
+      token: staff.token,
+      body: { seeds: [1000, 1000] },
+    });
+    await api(running.baseUrl, "/api/game/start", {
+      method: "POST",
+      token: staff.token,
+    });
+
+    const tiedSnapshot = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
+    const tiedData = await tiedSnapshot.json();
+    assert.deepEqual(
+      tiedData.teams.map((team) => team.assetRank),
+      [1, 1],
+    );
+
+    const initialBuy = await api(running.baseUrl, "/api/game/trade", {
+      method: "POST",
+      token: teamOne.token,
+      body: { ticker: "IMMU", action: "buy", quantity: 5 },
+    });
+    assert.equal(initialBuy.status, 200);
+    await api(running.baseUrl, "/api/game/round", {
+      method: "POST",
+      token: staff.token,
+    });
+
+    const roundOneSnapshot = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
+    const roundOneData = await roundOneSnapshot.json();
+    assert.deepEqual(roundOneData.teams[0], {
+      teamId: 1,
+      returnRate: 14.5,
+      roundReturnRate: 14.5,
+      assetRank: 1,
+    });
+    for (const privateField of [
+      "seedMoney",
+      "cash",
+      "totalAsset",
+      "holdings",
+      "trades",
+    ]) {
+      assert.equal(roundOneData.teams[0][privateField], undefined);
+    }
+
+    await api(running.baseUrl, "/api/game/trade", {
+      method: "POST",
+      token: teamOne.token,
+      body: { ticker: "IMMU", action: "sell", quantity: 2 },
+    });
+    await api(running.baseUrl, "/api/game/trade", {
+      method: "POST",
+      token: teamOne.token,
+      body: { ticker: "PEPT", action: "buy", quantity: 1 },
+    });
+    const afterRoundTrades = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
+    const afterRoundTradesData = await afterRoundTrades.json();
+    assert.equal(afterRoundTradesData.teams[0].roundReturnRate, 14.5);
+
+    await api(running.baseUrl, "/api/game/round", {
+      method: "POST",
+      token: staff.token,
+    });
+    const roundTwoSnapshot = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
+    const roundTwoData = await roundTwoSnapshot.json();
+    assert.equal(roundTwoData.teams[0].returnRate, 5.3);
+    assert.equal(roundTwoData.teams[0].roundReturnRate, -8.03);
+    assert.equal(roundTwoData.teams[0].assetRank, 1);
+    assert.equal(roundTwoData.teams[1].assetRank, 2);
+  } finally {
+    if (running) await stopServer(running.child).catch(() => undefined);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("shares staff, view, and team state through the public game server and keeps it after restart", async () => {
   const dataDir = await mkdtemp(resolve(tmpdir(), "be-remote-server-"));
   const port = 43000 + Math.floor(Math.random() * 1000);
@@ -389,6 +483,8 @@ test("shares staff, view, and team state through the public game server and keep
     assert.equal(preparedViewData.teams.length, 5);
     assert.equal(preparedViewData.team, null);
     assert.equal(preparedViewData.teams[0].returnRate, 0);
+    assert.equal(preparedViewData.teams[0].roundReturnRate, 0);
+    assert.equal(preparedViewData.teams[0].assetRank, 5);
     assert.equal(preparedViewData.teams[0].totalAsset, undefined);
     assert.equal(preparedViewData.auditLogs, null);
     assert.equal(preparedViewData.market.prices.IMMU[0], 120);
@@ -560,6 +656,8 @@ test("shares staff, view, and team state through the public game server and keep
     const viewData = await viewSnapshot.json();
     assert.equal(viewData.game.round, 1);
     assert.equal(viewData.teams[0].returnRate, 0);
+    assert.equal(viewData.teams[0].roundReturnRate, 0);
+    assert.equal(viewData.teams[0].assetRank, 5);
     assert.equal(viewData.teams[0].totalAsset, undefined);
     assert.equal(viewData.teams[0].cash, undefined);
     assert.equal(viewData.teams[0].holdings, undefined);
