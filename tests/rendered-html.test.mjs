@@ -157,6 +157,7 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(css, /\.view-rank-dialog,/);
   assert.match(css, /\.view-rank-board \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.view-asset-podium \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-asset-podium > li \{[^}]*grid-row: 1/);
   assert.match(css, /\.view-asset-podium > li\.podium-first \{[^}]*grid-column: 5 \/ 9/);
   assert.match(css, /\.view-asset-rank-rest,[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /@media \(min-width: 1400px\)[\s\S]*?\.view-asset-rank-rest \{[^}]*grid-template-columns: repeat\(9, minmax\(0, 1fr\)\)/);

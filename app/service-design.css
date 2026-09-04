@@ -5977,6 +5977,7 @@ input:disabled {
 }
 
 .view-asset-podium > li {
+  grid-row: 1;
   min-width: 0;
   min-height: clamp(164px, 19vh, 220px);
   display: grid;
