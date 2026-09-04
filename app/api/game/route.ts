@@ -5,7 +5,11 @@ import {
   stocks,
   type PriceSchedule,
 } from "../../game-data";
-import { publicGameSession, readSession } from "../../lib/session";
+import {
+  publicGameSession,
+  readSession,
+  type GameSession,
+} from "../../lib/session";
 
 type TeamRow = {
   team_id: number;
@@ -44,10 +48,10 @@ type AuditRow = {
   created_at: string;
 };
 
-export async function GET() {
-  const session = await readSession();
-  if (!session)
-    return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+export async function buildGameSnapshot(
+  session: GameSession,
+  { includeFinalResults = false } = {},
+) {
   await ensureGameSchema();
   const db = getGameDb();
   const [
@@ -211,6 +215,24 @@ export async function GET() {
       };
     },
   );
+  const performanceByTeam = new Map(
+    viewPerformance.map((team) => [team.teamId, team]),
+  );
+  const finalResults = teamViews
+    .map(({ teamId, seedMoney, totalAsset }) => {
+      const performance = performanceByTeam.get(teamId);
+      return {
+        teamId,
+        returnRate: performance?.returnRate ?? 0,
+        assetRank: performance?.assetRank ?? teamViews.length,
+        totalAsset,
+        seedMoney,
+      };
+    })
+    .sort(
+      (left, right) =>
+        left.assetRank - right.assetRank || left.teamId - right.teamId,
+    );
   const response = {
     session: publicGameSession(session),
     game: {
@@ -241,6 +263,13 @@ export async function GET() {
         : session.role === "view"
           ? viewPerformance
           : null,
+    finalResults:
+      includeFinalResults &&
+      session.role === "view" &&
+      Boolean(game.started) &&
+      game.round >= LAST_ROUND
+        ? finalResults
+        : null,
     auditLogs:
       session.role === "staff"
         ? (auditResult.results ?? []).map((log) => {
@@ -261,5 +290,14 @@ export async function GET() {
           })
         : null,
   };
-  return Response.json(response, { headers: { "Cache-Control": "no-store" } });
+  return response;
+}
+
+export async function GET() {
+  const session = await readSession();
+  if (!session)
+    return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  return Response.json(await buildGameSnapshot(session), {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

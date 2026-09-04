@@ -1,18 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { apiFetch } from "../api-client";
 import { LAST_ROUND, rounds, stocks } from "../game-data";
 import { AllStocksChart } from "./charts";
 import { Brand } from "./common";
 import { VIEW_THEME_KEY, viewRoundBriefs } from "./constants";
+import { ViewFinaleStage } from "./view-finale";
 import {
   isViewTeamPerformance,
   type ClientTheme,
+  type FinaleTeamResult,
   type Snapshot,
   type ViewTeamPerformance,
 } from "./types";
 
 type RankingWindow = "cumulative" | "assets";
+type FinaleState = {
+  teams: FinaleTeamResult[];
+};
 
 function signedRate(value: number, fractionDigits = 1) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(fractionDigits)}%`;
@@ -65,6 +71,8 @@ export function ViewDashboard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [rankingWindow, setRankingWindow] =
     useState<RankingWindow | null>(null);
+  const [finaleState, setFinaleState] = useState<FinaleState | null>(null);
+  const [finaleBusy, setFinaleBusy] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLElement>(null);
   const menuCloseRef = useRef<HTMLButtonElement>(null);
@@ -148,6 +156,17 @@ export function ViewDashboard({
     if (!rankingWindow && dialog.open) dialog.close();
     return () => window.cancelAnimationFrame(animationFrame);
   }, [rankingWindow]);
+  const finaleActive = Boolean(
+    finaleState &&
+      snapshot.game.started &&
+      round >= LAST_ROUND,
+  );
+  const finaleTeams = finaleState?.teams ?? [];
+  useEffect(() => {
+    if (snapshot.game.started && round >= LAST_ROUND) return;
+    const timer = window.setTimeout(() => setFinaleState(null), 0);
+    return () => window.clearTimeout(timer);
+  }, [round, snapshot.game.started]);
   const roundStandings = useMemo(
     () => sortByRate(teams, "roundReturnRate"),
     [teams],
@@ -208,11 +227,46 @@ export function ViewDashboard({
     setMenuOpen(false);
     setRankingWindow(window);
   };
+  const toggleFinale = async () => {
+    if (finaleActive) {
+      setFinaleState(null);
+      setMenuOpen(false);
+      return;
+    }
+
+    setFinaleBusy(true);
+    try {
+      const response = await apiFetch("/api/game/final-results", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = (await response.json()) as {
+        error?: string;
+        finalResults?: FinaleTeamResult[];
+      };
+      if (!response.ok || !data.finalResults?.length) {
+        throw new Error(data.error ?? "최종 결과를 불러오지 못했습니다.");
+      }
+      setFinaleState({
+        teams: [...data.finalResults],
+      });
+      setRankingWindow(null);
+    } catch (caught) {
+      window.alert(
+        caught instanceof Error
+          ? caught.message
+          : "최종 결과를 불러오지 못했습니다.",
+      );
+    } finally {
+      setFinaleBusy(false);
+    }
+    setMenuOpen(false);
+  };
   return (
     <main
       id="main-content"
       tabIndex={-1}
-      className={`view-shell theme-${viewTheme} ${teams.length > 16 ? "dense" : ""}`}
+      className={`view-shell theme-${viewTheme} ${teams.length > 16 ? "dense" : ""} ${finaleActive ? "finale-active" : ""}`}
     >
       <button
         ref={menuTriggerRef}
@@ -264,6 +318,21 @@ export function ViewDashboard({
             </strong>
           </div>
           <div className="view-screen-actions">
+            {snapshot.game.started && round >= LAST_ROUND && (
+              <button
+                type="button"
+                className="view-finale-action"
+                aria-pressed={finaleActive}
+                disabled={finaleBusy}
+                onClick={() => void toggleFinale()}
+              >
+                {finaleBusy
+                  ? "결과 준비 중"
+                  : finaleActive
+                    ? "마무리 화면 종료"
+                    : "전체 라운드 종료"}
+              </button>
+            )}
             <button
               type="button"
               className="view-theme-toggle"
@@ -485,10 +554,14 @@ export function ViewDashboard({
           </section>
         )}
       </dialog>
-      <section
-        className="view-event-banner"
-        key={`${snapshot.game.started}-${round}`}
-      >
+      {finaleActive ? (
+        <ViewFinaleStage teams={finaleTeams} />
+      ) : (
+        <>
+          <section
+            className="view-event-banner"
+            key={`${snapshot.game.started}-${round}`}
+          >
         <div className="view-round-mark">
           <span>{round === 0 ? "기준가" : "라운드"}</span>
           <strong>{round}</strong>
@@ -516,8 +589,8 @@ export function ViewDashboard({
             <span key={tag}>{tag}</span>
           ))}
         </div>
-      </section>
-      <section className="view-dashboard-grid">
+          </section>
+          <section className="view-dashboard-grid">
         <section className="view-market-card">
           <header>
             <h2>{round === 0 ? "전체 종목 기준가" : "전체 종목 주가 흐름"}</h2>
@@ -655,7 +728,9 @@ export function ViewDashboard({
           <strong>이번 라운드 참고 정보</strong>
           <p>{brief.note}</p>
         </section>
-      </section>
+          </section>
+        </>
+      )}
     </main>
   );
 }

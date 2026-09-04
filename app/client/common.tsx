@@ -251,15 +251,7 @@ export function WaitingScreen({
     <main className="app-shell" id="main-content" tabIndex={-1}>
       <Topbar session={session} round={0} onLogout={onLogout} started={false} />
       <section className="waiting-screen" aria-live="polite">
-        <div className="waiting-status" aria-hidden="true">
-          <span>준비 중</span>
-        </div>
-        <span className="eyebrow">게임 준비 중</span>
         <h1>게임 시작을 기다리고 있습니다</h1>
-        <p>
-          스태프가 시드머니를 저장한 뒤 게임 시작 버튼을 누르면 자동으로 거래
-          화면이 열립니다.
-        </p>
       </section>
     </main>
   );

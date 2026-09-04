@@ -6,6 +6,7 @@ export function createRequestHandler({ http, sessions, game }) {
     sessions;
   const {
     gameSnapshot,
+    getFinalResults,
     setupGame,
     forceLogoutTeam,
     updateHintCoins,
@@ -85,6 +86,18 @@ export function createRequestHandler({ http, sessions, game }) {
       }
       if (pathname === "/api/game" && request.method === "GET") {
         sendJson(response, 200, gameSnapshot(session), origin);
+        return;
+      }
+      if (
+        pathname === "/api/game/final-results" &&
+        request.method === "POST"
+      ) {
+        sendJson(
+          response,
+          200,
+          { finalResults: getFinalResults(session) },
+          origin,
+        );
         return;
       }
       if (pathname === "/api/game/setup" && request.method === "POST") {

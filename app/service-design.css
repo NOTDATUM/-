@@ -552,11 +552,11 @@ input:disabled {
   min-height: calc(100svh - 68px);
   display: grid;
   place-content: center;
-  justify-items: start;
+  justify-items: center;
   max-width: 760px;
   margin: 0 auto;
   padding: 48px 24px;
-  text-align: left;
+  text-align: center;
 }
 
 .waiting-status {
@@ -574,10 +574,11 @@ input:disabled {
 
 .waiting-screen h1 {
   margin: 10px 0 10px;
-  font-size: clamp(30px, 5vw, 42px);
+  font-size: clamp(36px, 5.5vw, 56px);
   font-weight: 760;
   line-height: 1.25;
   letter-spacing: -0.035em;
+  word-break: keep-all;
 }
 
 .waiting-screen p {
@@ -3335,10 +3336,10 @@ input:disabled {
 .view-shell.theme-light .view-event-banner {
   min-width: 0;
   display: grid;
-  grid-template-columns: 124px minmax(0, 1fr) minmax(260px, 0.42fr);
+  grid-template-columns: 124px minmax(0, 1fr) max-content;
   align-items: center;
   gap: 24px;
-  padding: 16px 172px 16px 24px;
+  padding: 16px 24px;
   border: 0;
   border-bottom: 2px solid var(--view-accent);
   background: var(--view-surface);
@@ -3424,9 +3425,15 @@ input:disabled {
 
 .view-event-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  align-self: end;
   gap: 6px;
+}
+
+.view-event-tags > span {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .view-event-tags span,
@@ -3865,9 +3872,9 @@ input:disabled {
 
   .view-event-banner,
   .view-shell.theme-light .view-event-banner {
-    grid-template-columns: 100px minmax(0, 1fr) minmax(220px, 0.34fr);
+    grid-template-columns: 100px minmax(0, 1fr) max-content;
     gap: 14px;
-    padding: 10px 140px 10px 16px;
+    padding: 10px 16px;
   }
 
   .view-round-mark {
@@ -4224,6 +4231,8 @@ input:disabled {
   .view-event-tags {
     grid-column: 1 / -1;
     justify-content: flex-start;
+    align-self: auto;
+    flex-wrap: wrap;
   }
 
   .view-dashboard-grid,
@@ -6454,5 +6463,429 @@ input:disabled {
   .view-asset-rank-rest,
   .view-asset-tied-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Public view: final result reveal */
+.view-control-bar .view-screen-actions .view-finale-action,
+.view-shell.theme-light .view-control-bar .view-screen-actions .view-finale-action {
+  border-color: var(--view-accent);
+  color: var(--view-accent);
+}
+
+.view-control-bar .view-screen-actions .view-finale-action:hover,
+.view-shell.theme-light .view-control-bar .view-screen-actions .view-finale-action:hover {
+  background: var(--view-accent);
+  color: var(--view-bg);
+}
+
+.view-control-bar .view-screen-actions .view-finale-action:disabled,
+.view-shell.theme-light .view-control-bar .view-screen-actions .view-finale-action:disabled {
+  opacity: 0.46;
+  cursor: wait;
+}
+
+.view-shell.finale-active,
+.view-shell.theme-light.finale-active {
+  position: relative;
+  height: 100svh;
+  min-height: 0;
+  display: block;
+  overflow: hidden;
+  background: var(--view-bg);
+}
+
+.view-finale-stage {
+  position: relative;
+  width: 100%;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--view-bg);
+}
+
+.view-finale-board {
+  width: min(100%, 1920px);
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(250px, 0.85fr) minmax(0, 1.55fr);
+  gap: 16px;
+  margin: 0 auto;
+  padding: 72px 26px 20px;
+}
+
+.view-finale-podium,
+.view-finale-rest {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.view-finale-podium {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  gap: 18px;
+}
+
+.view-finale-podium .podium-slot-1 {
+  grid-column: 1;
+}
+
+.view-finale-podium .podium-slot-2 {
+  grid-column: 2;
+}
+
+.view-finale-podium .podium-slot-3 {
+  grid-column: 3;
+}
+
+.view-finale-rest {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.view-finale-result {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto;
+  align-content: space-between;
+  gap: 12px;
+  padding: 15px 18px;
+  overflow: hidden;
+  border: 2px solid var(--view-border);
+  border-radius: 10px;
+  background: var(--view-surface);
+  color: var(--view-text);
+}
+
+.view-finale-podium .view-finale-result {
+  min-height: clamp(210px, 22vh, 270px);
+  padding: clamp(18px, 1.5vw, 28px);
+}
+
+.view-finale-podium .view-finale-result.rank-1 {
+  min-height: clamp(250px, 27vh, 320px);
+  border-color: #e2b643;
+  background: color-mix(in srgb, #c99724 8%, var(--view-surface));
+}
+
+.view-finale-result.rank-2 {
+  border-color: #aebdca;
+  background: color-mix(in srgb, #9aabba 7%, var(--view-surface));
+}
+
+.view-finale-result.rank-3 {
+  border-color: #c18155;
+  background: color-mix(in srgb, #b06f45 7%, var(--view-surface));
+}
+
+.view-finale-result.concealed {
+  visibility: hidden;
+}
+
+.view-finale-result.revealed {
+  visibility: visible;
+  animation: view-finale-result-in 560ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes view-finale-result-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.view-finale-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.view-finale-rank {
+  width: 54px;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 50%;
+  background: var(--view-surface-soft);
+  color: var(--view-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.view-finale-rank strong {
+  align-self: center;
+  font-size: 25px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.view-finale-rank small {
+  align-self: center;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.view-finale-result.rank-1 .view-finale-rank {
+  width: clamp(72px, 5vw, 90px);
+  background: #e5b945;
+  color: #211805;
+}
+
+.view-finale-result.rank-2 .view-finale-rank {
+  background: #d7e0e7;
+  color: #1c2832;
+}
+
+.view-finale-result.rank-3 .view-finale-rank {
+  background: #c78a5e;
+  color: #24150c;
+}
+
+.view-finale-podium .view-finale-rank {
+  width: clamp(62px, 4.3vw, 80px);
+}
+
+.view-finale-podium .view-finale-rank strong {
+  font-size: clamp(29px, 2.25vw, 42px);
+}
+
+.view-finale-team {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--view-text);
+  font-size: clamp(28px, 2vw, 38px);
+  font-weight: 810;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-finale-podium .view-finale-team {
+  font-size: clamp(40px, 3.4vw, 60px);
+}
+
+.view-finale-result.rank-1 .view-finale-team {
+  font-size: clamp(48px, 4vw, 70px);
+}
+
+.view-finale-result dl {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.view-finale-result dl > div {
+  min-width: 0;
+  padding-top: 9px;
+  border-top: 1px solid color-mix(in srgb, var(--view-border) 62%, transparent);
+}
+
+.view-finale-result dt {
+  overflow: hidden;
+  color: var(--view-text-tertiary);
+  font-size: clamp(12px, 0.8vw, 15px);
+  font-weight: 680;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-finale-result dd {
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--view-text);
+  font: 780 clamp(16px, 1.2vw, 22px)/1.15 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-finale-podium .view-finale-result dd {
+  font-size: clamp(20px, 1.55vw, 28px);
+}
+
+.view-finale-result dd.up {
+  color: var(--view-positive);
+}
+
+.view-finale-result dd.down {
+  color: var(--view-negative);
+}
+
+.view-finale-reveal-target {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.view-finale-reveal-target:focus-visible {
+  outline: 3px solid var(--view-accent);
+  outline-offset: -7px;
+}
+
+.view-finale-reveal-target:disabled {
+  pointer-events: none;
+  cursor: default;
+}
+
+@media (max-height: 820px) and (min-width: 1180px) {
+  .view-finale-board {
+    grid-template-rows: 205px minmax(0, 1fr);
+    gap: 12px;
+    padding: 62px 18px 16px;
+  }
+
+  .view-finale-podium {
+    gap: 12px;
+  }
+
+  .view-finale-podium .view-finale-result {
+    min-height: 172px;
+    padding: 14px 18px;
+  }
+
+  .view-finale-podium .view-finale-result.rank-1 {
+    min-height: 205px;
+  }
+
+  .view-finale-result {
+    gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .view-finale-rest {
+    gap: 8px 10px;
+  }
+
+  .view-finale-rank {
+    width: 46px;
+  }
+
+  .view-finale-rank strong {
+    font-size: 22px;
+  }
+
+  .view-finale-podium .view-finale-rank,
+  .view-finale-result.rank-1 .view-finale-rank {
+    width: 58px;
+  }
+
+  .view-finale-podium .view-finale-rank strong {
+    font-size: 29px;
+  }
+
+  .view-finale-podium .view-finale-team {
+    font-size: 38px;
+  }
+
+  .view-finale-result.rank-1 .view-finale-team {
+    font-size: 46px;
+  }
+
+  .view-finale-result dl > div {
+    padding-top: 6px;
+  }
+
+  .view-finale-result dt {
+    font-size: 11px;
+  }
+
+  .view-finale-result dd,
+  .view-finale-podium .view-finale-result dd {
+    font-size: 17px;
+  }
+}
+
+@media (max-width: 1179px) {
+  .view-finale-stage {
+    overflow-y: auto;
+  }
+
+  .view-finale-board {
+    height: auto;
+    min-height: 100%;
+    grid-template-rows: auto auto;
+    padding: 76px 16px 24px;
+  }
+
+  .view-finale-podium .view-finale-result,
+  .view-finale-podium .view-finale-result.rank-1 {
+    min-height: 210px;
+  }
+
+  .view-finale-rest {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-rows: minmax(132px, auto);
+  }
+}
+
+@media (max-width: 820px) {
+  .view-finale-board {
+    display: block;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .view-finale-podium,
+  .view-finale-rest {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-auto-rows: minmax(132px, auto);
+    gap: 9px;
+  }
+
+  .view-finale-podium {
+    margin-bottom: 9px;
+  }
+
+  .view-finale-podium .view-finale-result,
+  .view-finale-podium .view-finale-result.rank-1 {
+    min-height: 150px;
+  }
+
+  .view-finale-podium .view-finale-team,
+  .view-finale-result.rank-1 .view-finale-team {
+    font-size: 36px;
+  }
+}
+
+@media (max-width: 520px) {
+  .view-finale-result dl {
+    grid-template-columns: 1fr;
+  }
+
+  .view-finale-result {
+    min-height: 230px;
   }
 }

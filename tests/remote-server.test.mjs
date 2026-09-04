@@ -357,6 +357,7 @@ test("reports single-round returns and asset ranks to the public view without le
       token: view.token,
     });
     const tiedData = await tiedSnapshot.json();
+    assert.equal(tiedData.finalResults, null);
     assert.deepEqual(
       tiedData.teams.map((team) => team.assetRank),
       [1, 1],
@@ -377,6 +378,7 @@ test("reports single-round returns and asset ranks to the public view without le
       token: view.token,
     });
     const roundOneData = await roundOneSnapshot.json();
+    assert.equal(roundOneData.finalResults, null);
     assert.deepEqual(roundOneData.teams[0], {
       teamId: 1,
       returnRate: 14.5,
@@ -428,10 +430,79 @@ test("reports single-round returns and asset ranks to the public view without le
       token: view.token,
     });
     const roundTwoData = await roundTwoSnapshot.json();
+    assert.equal(roundTwoData.finalResults, null);
     assert.equal(roundTwoData.teams[0].returnRate, 5.3);
     assert.equal(roundTwoData.teams[0].roundReturnRate, -8.03);
     assert.equal(roundTwoData.teams[0].assetRank, 1);
     assert.equal(roundTwoData.teams[1].assetRank, 2);
+
+    const earlyFinalResults = await api(
+      running.baseUrl,
+      "/api/game/final-results",
+      { method: "POST", token: view.token },
+    );
+    assert.equal(earlyFinalResults.status, 409);
+
+    for (let nextRound = 3; nextRound <= 7; nextRound += 1) {
+      const advance = await api(running.baseUrl, "/api/game/round", {
+        method: "POST",
+        token: staff.token,
+      });
+      assert.equal(advance.status, 200);
+    }
+    const finalViewSnapshot = await api(running.baseUrl, "/api/game", {
+      token: view.token,
+    });
+    const finalViewData = await finalViewSnapshot.json();
+    assert.equal(finalViewData.game.round, 7);
+    assert.equal(finalViewData.finalResults, null);
+    const finalResultsResponse = await api(
+      running.baseUrl,
+      "/api/game/final-results",
+      { method: "POST", token: view.token },
+    );
+    assert.equal(finalResultsResponse.status, 200);
+    const finalResultsData = await finalResultsResponse.json();
+    assert.deepEqual(finalResultsData.finalResults, [
+      {
+        teamId: 1,
+        returnRate: 127.3,
+        assetRank: 1,
+        totalAsset: 2273,
+        seedMoney: 1000,
+      },
+      {
+        teamId: 2,
+        returnRate: 0,
+        assetRank: 2,
+        totalAsset: 1000,
+        seedMoney: 1000,
+      },
+    ]);
+    for (const team of finalViewData.teams) {
+      assert.deepEqual(Object.keys(team).sort(), [
+        "assetRank",
+        "returnRate",
+        "roundReturnRate",
+        "teamId",
+      ]);
+    }
+    const finalTeamSnapshot = await api(running.baseUrl, "/api/game", {
+      token: teamOne.token,
+    });
+    const finalTeamData = await finalTeamSnapshot.json();
+    assert.equal(finalTeamData.finalResults, null);
+    const finalStaffSnapshot = await api(running.baseUrl, "/api/game", {
+      token: staff.token,
+    });
+    const finalStaffData = await finalStaffSnapshot.json();
+    assert.equal(finalStaffData.finalResults, null);
+    const deniedTeamResults = await api(
+      running.baseUrl,
+      "/api/game/final-results",
+      { method: "POST", token: teamOne.token },
+    );
+    assert.equal(deniedTeamResults.status, 403);
   } finally {
     if (running) await stopServer(running.child).catch(() => undefined);
     await rm(dataDir, { recursive: true, force: true });

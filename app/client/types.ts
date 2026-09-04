@@ -35,6 +35,14 @@ export type ViewTeamPerformance = {
   assetRank: number;
 };
 
+export type FinaleTeamResult = {
+  teamId: number;
+  returnRate: number;
+  assetRank: number;
+  totalAsset: number;
+  seedMoney: number;
+};
+
 export type AdminAuditLog = {
   id: number;
   actor: string;
@@ -50,6 +58,7 @@ export type Snapshot = {
   market: { prices: PriceSchedule };
   team: TeamView | null;
   teams: Array<TeamView | ViewTeamPerformance> | null;
+  finalResults?: FinaleTeamResult[] | null;
   auditLogs?: AdminAuditLog[] | null;
 };
 

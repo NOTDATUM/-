@@ -24,6 +24,9 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /동행/);
   assert.match(page, /생명과학부 모의주식 레크리에이션/);
   assert.match(page, /모의주식시장 입장/);
+  assert.match(page, /게임 시작을 기다리고 있습니다/);
+  assert.doesNotMatch(page, /스태프가 시드머니를 저장한 뒤/);
+  assert.doesNotMatch(page, /게임 준비 중/);
   assert.match(page, /운영자 콘솔 로그인/);
   assert.match(page, /공용 진행 화면 연결/);
   assert.match(page, /운영 관리 콘솔/);
@@ -48,6 +51,9 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /화면 메뉴/);
   assert.match(page, /종목 색상 범례/);
   assert.match(page, /전체화면/);
+  assert.match(page, /전체 라운드 종료/);
+  assert.match(page, /마무리 화면 종료/);
+  assert.match(page, /최종 결과 공개/);
   assert.match(page, /be-view-theme/);
   assert.match(page, /projector-light/);
   assert.match(page, /전체 시장/);
@@ -158,8 +164,23 @@ test("keeps the public view legible on a projector", async () => {
     new URL("../app/client/view-dashboard.tsx", import.meta.url),
     "utf8",
   );
+  const viewFinale = await readFile(
+    new URL("../app/client/view-finale.tsx", import.meta.url),
+    "utf8",
+  );
 
+  assert.match(
+    css,
+    /\.waiting-screen \{[^}]*justify-items: center[^}]*text-align: center/,
+  );
+  assert.match(
+    css,
+    /\.waiting-screen h1 \{[^}]*font-size: clamp\(36px, 5\.5vw, 56px\)/,
+  );
   assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(44px, 3vw, 54px\)/);
+  assert.match(css, /grid-template-columns: 124px minmax\(0, 1fr\) max-content/);
+  assert.match(css, /\.view-event-tags \{[^}]*flex-wrap: nowrap/);
+  assert.match(css, /@media \(max-width: 1179px\)[\s\S]*?\.view-event-tags \{[^}]*flex-wrap: wrap/);
   assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 790 30px/);
   assert.match(css, /\.view-reference p[^}]*\{[^}]*font-size: 20px/);
@@ -182,6 +203,24 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(viewDashboard, /assetStandings\.slice\(0, 3\)/);
   assert.match(viewDashboard, /assetStandings\.slice\(3\)/);
   assert.match(viewDashboard, /assetStandings\.length === 12/);
+  assert.match(viewDashboard, /전체 라운드 종료/);
+  assert.match(viewDashboard, /\/api\/game\/final-results/);
+  assert.match(viewDashboard, /ViewFinaleStage/);
+  assert.match(viewFinale, /filter\(\(\[rank\]\) => rank > 2\)/);
+  assert.match(viewFinale, /teams\.filter\(\(team\) => team\.assetRank <= 2\)/);
+  assert.match(viewFinale, /orderedTeams\.slice\(0, 3\)/);
+  assert.match(viewFinale, /setRevealStep\(\(current\) => current \+ 1\)/);
+  assert.match(viewFinale, /window\.setTimeout\(unlockReveal, 650\)/);
+  assert.match(
+    viewFinale,
+    /disabled=\{complete \|\| revealLocked \|\| revealGroups\.length === 0\}/,
+  );
+  assert.match(viewFinale, /누적 수익률/);
+  assert.match(viewFinale, /총자산/);
+  assert.match(viewFinale, /시드머니/);
+  assert.match(css, /@keyframes view-finale-result-in/);
+  assert.match(css, /\.view-finale-reveal-target \{[^}]*position: absolute[^}]*inset: 0/);
+  assert.match(css, /\.view-finale-result\.concealed \{[^}]*visibility: hidden/);
   assert.doesNotMatch(viewDashboard, /view-rank-private/);
   assert.doesNotMatch(viewDashboard, /team\.totalAsset/);
   assert.match(css, /@media \(max-width: 1179px\)/);

@@ -48,7 +48,7 @@ export function createGameService({
     return round < lastRound && (getStockPrice(ticker, round) ?? 0) > 0;
   }
 
-  function gameSnapshot(session) {
+  function gameSnapshot(session, { includeFinalResults = false } = {}) {
     const game = db
       .prepare("SELECT round, started, updated_at FROM game_state WHERE id = 1")
       .get() ?? { round: 0, started: 0, updated_at: "" };
@@ -193,6 +193,24 @@ export function createGameService({
         };
       },
     );
+    const performanceByTeam = new Map(
+      viewPerformance.map((team) => [team.teamId, team]),
+    );
+    const finalResults = teamViews
+      .map(({ teamId, seedMoney, totalAsset }) => {
+        const performance = performanceByTeam.get(teamId);
+        return {
+          teamId,
+          returnRate: performance?.returnRate ?? 0,
+          assetRank: performance?.assetRank ?? teamViews.length,
+          totalAsset,
+          seedMoney,
+        };
+      })
+      .sort(
+        (left, right) =>
+          left.assetRank - right.assetRank || left.teamId - right.teamId,
+      );
     return {
       session: publicSession(session),
       game: {
@@ -223,6 +241,13 @@ export function createGameService({
           : session.role === "view"
             ? viewPerformance
             : null,
+      finalResults:
+        includeFinalResults &&
+        session.role === "view" &&
+        Boolean(game.started) &&
+        game.round >= lastRound
+          ? finalResults
+          : null,
       auditLogs:
         session.role === "staff"
           ? auditRows.map((log) => ({
@@ -235,6 +260,17 @@ export function createGameService({
             }))
           : null,
     };
+  }
+
+  function getFinalResults(session) {
+    if (session.role !== "view") {
+      throw new HttpError(403, "공용 화면 계정으로 로그인해 주세요.");
+    }
+    const snapshot = gameSnapshot(session, { includeFinalResults: true });
+    if (!snapshot.game.started || snapshot.game.round < lastRound) {
+      throw new HttpError(409, "전체 라운드가 끝난 뒤 결과를 공개할 수 있습니다.");
+    }
+    return snapshot.finalResults ?? [];
   }
 
   function setupGame(seeds) {
@@ -576,6 +612,7 @@ export function createGameService({
 
   return {
     gameSnapshot,
+    getFinalResults,
     setupGame,
     forceLogoutTeam,
     updateHintCoins,
