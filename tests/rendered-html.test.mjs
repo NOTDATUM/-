@@ -35,6 +35,15 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /조별 순위/);
   assert.match(page, /실제 BE 금액은 표시하지 않습니다/);
   assert.match(page, /이번 라운드 참고 정보/);
+  assert.match(page, /통합생명과학학회 개막/);
+  assert.match(page, /실험 물자 공급난/);
+  assert.match(page, /호흡기 감염 급증/);
+  assert.match(page, /자금·발주·심사 재개/);
+  assert.match(page, /정부 바이오 기업 감사/);
+  assert.match(page, /기록적 폭염/);
+  assert.match(page, /신종 인수공통감염병 확산/);
+  assert.doesNotMatch(page, /감염 우려 해소/);
+  assert.doesNotMatch(page, /클라우드 비용/);
   assert.doesNotMatch(page, /실제 자산은 공개하지 않음/);
   assert.match(page, /화면 메뉴/);
   assert.match(page, /종목 색상 범례/);
