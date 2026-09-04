@@ -168,6 +168,13 @@ test("keeps the public view legible on a projector", async () => {
     new URL("../app/client/view-finale.tsx", import.meta.url),
     "utf8",
   );
+  const viewCompanyPresentation = await readFile(
+    new URL(
+      "../app/client/view-company-presentation.tsx",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 
   assert.match(
     css,
@@ -185,6 +192,27 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(css, /\.view-ranking-grid article > em[^}]*\{[^}]*font: 790 30px/);
   assert.match(css, /\.view-reference p[^}]*\{[^}]*font-size: 20px/);
   assert.match(css, /\.view-baseline-board \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(viewDashboard, /aria-haspopup="dialog"/);
+  assert.match(viewDashboard, /aria-controls="view-company-dialog"/);
+  assert.match(viewDashboard, /setPresentedStockTicker\(stock\.ticker\)/);
+  assert.match(viewDashboard, /round === 0 && presentedStock/);
+  assert.match(viewCompanyPresentation, /dialog/);
+  assert.match(viewCompanyPresentation, /dialog\.showModal\(\)/);
+  assert.match(viewCompanyPresentation, /stock\.description/);
+  assert.match(viewCompanyPresentation, /stock\.revenueStreams\.map/);
+  assert.match(viewCompanyPresentation, /기업 설명 닫기/);
+  assert.doesNotMatch(
+    viewCompanyPresentation,
+    /stock\.(?:strength|risk|sensitivities)/,
+  );
+  assert.match(
+    css,
+    /\.view-company-dialog,[\s\S]*?width: min\(1240px, calc\(100vw - 48px\)\)/,
+  );
+  assert.match(
+    css,
+    /\.view-company-overview > p \{[^}]*font-size: clamp\(23px, 1\.75vw, 29px\)/,
+  );
   assert.match(css, /\.view-rank-dialog,/);
   assert.match(css, /\.view-rank-board \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.view-asset-podium \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
@@ -221,6 +249,18 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(css, /@keyframes view-finale-result-in/);
   assert.match(css, /\.view-finale-reveal-target \{[^}]*position: absolute[^}]*inset: 0/);
   assert.match(css, /\.view-finale-result\.concealed \{[^}]*visibility: hidden/);
+  assert.match(
+    css,
+    /@media \(min-width: 1180px\)[\s\S]*?\.view-finale-podium \{[^}]*width: min\(84%, 1400px\)[^}]*justify-self: center/,
+  );
+  assert.match(
+    css,
+    /\.view-finale-rest \{[^}]*grid-template-columns: repeat\(10, minmax\(0, 1fr\)\)[^}]*grid-template-rows: repeat\(2, clamp\(108px, 14vh, 150px\)\)/,
+  );
+  assert.match(
+    css,
+    /\.view-finale-rest > \.view-finale-result:nth-child\(1\) \{[^}]*grid-column: 2 \/ 4;[^}]*grid-row: 1/,
+  );
   assert.doesNotMatch(viewDashboard, /view-rank-private/);
   assert.doesNotMatch(viewDashboard, /team\.totalAsset/);
   assert.match(css, /@media \(max-width: 1179px\)/);

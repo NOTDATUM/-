@@ -6,6 +6,7 @@ import { LAST_ROUND, rounds, stocks } from "../game-data";
 import { AllStocksChart } from "./charts";
 import { Brand } from "./common";
 import { VIEW_THEME_KEY, viewRoundBriefs } from "./constants";
+import { ViewCompanyPresentation } from "./view-company-presentation";
 import { ViewFinaleStage } from "./view-finale";
 import {
   isViewTeamPerformance,
@@ -71,6 +72,9 @@ export function ViewDashboard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [rankingWindow, setRankingWindow] =
     useState<RankingWindow | null>(null);
+  const [presentedStockTicker, setPresentedStockTicker] = useState<
+    string | null
+  >(null);
   const [finaleState, setFinaleState] = useState<FinaleState | null>(null);
   const [finaleBusy, setFinaleBusy] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -140,6 +144,11 @@ export function ViewDashboard({
     return () => document.removeEventListener("keydown", handleMenuTab);
   }, [menuOpen]);
   useEffect(() => {
+    if (round === 0) return;
+    const timer = window.setTimeout(() => setPresentedStockTicker(null), 0);
+    return () => window.clearTimeout(timer);
+  }, [round]);
+  useEffect(() => {
     const dialog = rankingDialogRef.current;
     if (!dialog) return;
     let animationFrame = 0;
@@ -202,6 +211,12 @@ export function ViewDashboard({
     assetRankCounts.get(2) === 1 &&
     assetRankCounts.get(3) === 1;
   const brief = viewRoundBriefs[round];
+  const presentedStock = stocks.find(
+    (stock) => stock.ticker === presentedStockTicker,
+  );
+  const presentedStockPrice = presentedStock
+    ? (prices[presentedStock.ticker] ?? presentedStock.prices)[0]
+    : null;
   const maxRoundReturn = Math.max(
     1,
     ...roundStandings.map((team) => Math.abs(team.roundReturnRate)),
@@ -225,9 +240,11 @@ export function ViewDashboard({
   };
   const openRankingWindow = (window: RankingWindow) => {
     setMenuOpen(false);
+    setPresentedStockTicker(null);
     setRankingWindow(window);
   };
   const toggleFinale = async () => {
+    setPresentedStockTicker(null);
     if (finaleActive) {
       setFinaleState(null);
       setMenuOpen(false);
@@ -554,6 +571,13 @@ export function ViewDashboard({
           </section>
         )}
       </dialog>
+      {round === 0 && presentedStock && (
+        <ViewCompanyPresentation
+          stock={presentedStock}
+          price={presentedStockPrice}
+          onClose={() => setPresentedStockTicker(null)}
+        />
+      )}
       {finaleActive ? (
         <ViewFinaleStage teams={finaleTeams} />
       ) : (
@@ -596,29 +620,40 @@ export function ViewDashboard({
             <h2>{round === 0 ? "전체 종목 기준가" : "전체 종목 주가 흐름"}</h2>
           </header>
           {round === 0 ? (
-            <div
+            <ul
               className="view-baseline-board"
-              role="list"
               aria-label="전체 종목 기준가"
             >
               {stocks.map((stock) => {
                 const price = (prices[stock.ticker] ?? stock.prices)[0];
                 return (
-                  <article
-                    key={stock.ticker}
-                    role="listitem"
-                    aria-label={`${stock.name} ${stock.ticker}, ${price === null ? "공개 전" : `기준가 ${price} BE`}`}
-                  >
-                    <i style={{ background: stock.color }} aria-hidden="true" />
-                    <div>
-                      <strong>{stock.ticker}</strong>
-                      <span>{stock.name}</span>
-                    </div>
-                    <em>{price === null ? "공개 전" : `${price.toLocaleString("ko-KR")} BE`}</em>
-                  </article>
+                  <li key={stock.ticker}>
+                    <button
+                      type="button"
+                      aria-haspopup="dialog"
+                      aria-controls="view-company-dialog"
+                      aria-label={`${stock.name} ${stock.ticker} 기업 설명 열기, ${price === null ? "공개 전" : `기준가 ${price} BE`}`}
+                      onClick={() => {
+                        setRankingWindow(null);
+                        setPresentedStockTicker(stock.ticker);
+                      }}
+                    >
+                      <i style={{ background: stock.color }} aria-hidden="true" />
+                      <div>
+                        <strong>{stock.ticker}</strong>
+                        <span>{stock.name}</span>
+                        <small>기업 설명 보기 →</small>
+                      </div>
+                      <em>
+                        {price === null
+                          ? "공개 전"
+                          : `${price.toLocaleString("ko-KR")} BE`}
+                      </em>
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           ) : (
             <>
               <AllStocksChart
