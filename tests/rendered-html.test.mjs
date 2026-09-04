@@ -250,7 +250,20 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(viewFinale, /누적 수익률/);
   assert.match(viewFinale, /총자산/);
   assert.match(viewFinale, /시드머니/);
+  assert.match(
+    viewFinale,
+    /team\.assetRank === 1[\s\S]*?className="view-finale-crown"[\s\S]*?aria-hidden="true"[\s\S]*?♛/,
+  );
   assert.match(css, /@keyframes view-finale-result-in/);
+  assert.match(css, /@keyframes view-finale-crown-in/);
+  assert.match(
+    css,
+    /\.view-finale-result\.rank-1\.revealed \.view-finale-crown \{[^}]*animation: view-finale-crown-in 760ms/,
+  );
+  assert.match(
+    css,
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.view-finale-result\.rank-1\.revealed \.view-finale-crown \{[^}]*animation: none[^}]*opacity: 1/,
+  );
   assert.match(css, /\.view-finale-reveal-target \{[^}]*position: absolute[^}]*inset: 0/);
   assert.match(css, /\.view-finale-result\.concealed \{[^}]*visibility: hidden/);
   assert.match(

@@ -50,6 +50,11 @@ function FinaleResultCard({
       aria-hidden={!revealed}
       aria-label={`${team.assetRank}위, ${team.teamId}조, 누적 수익률 ${signedRate(team.returnRate)}, 총자산 ${money.format(team.totalAsset)} BE, 시드머니 ${money.format(team.seedMoney)} BE`}
     >
+      {team.assetRank === 1 && (
+        <span className="view-finale-crown" aria-hidden="true">
+          ♛
+        </span>
+      )}
       <div className="view-finale-identity">
         <span className="view-finale-rank">
           <strong>{team.assetRank}</strong>
