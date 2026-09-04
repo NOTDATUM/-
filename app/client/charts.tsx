@@ -408,14 +408,6 @@ export function AllStocksChart({
         context.textBaseline = "middle";
         labels.forEach((label) => {
           const labelX = Math.min(label.x + 14, width - pad.right + 14);
-          context.beginPath();
-          context.moveTo(label.x + 7, label.y);
-          context.lineTo(labelX - 6, label.labelY);
-          context.strokeStyle = label.color;
-          context.globalAlpha = 0.72;
-          context.lineWidth = 2;
-          context.stroke();
-          context.globalAlpha = 1;
           const text = `${label.ticker} ${money.format(Math.round(label.value))}`;
           context.lineJoin = "round";
           context.strokeStyle = projectorLight

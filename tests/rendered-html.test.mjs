@@ -29,7 +29,8 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /운영 관리 콘솔/);
   assert.match(page, /참가 조 관리/);
   assert.match(page, /현재 라운드 주요 공지/);
-  assert.match(page, /라운드 단회 수익률/);
+  assert.match(page, /라운드 수익률/);
+  assert.doesNotMatch(page, /단회 수익률/);
   assert.match(page, /전체 누적 수익률 순위/);
   assert.match(page, /조별 순위/);
   assert.match(page, /실제 BE 금액은 표시하지 않습니다/);
@@ -181,6 +182,11 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(charts, /Math\.max\(22, Math\.min\(26, width \/ 48\)\)/);
   assert.match(charts, /projector \? 5\.2/);
   assert.match(charts, /endpointLabels/);
+  assert.match(charts, /context\.lineTo\(px, py\)/);
+  assert.match(charts, /context\.strokeText\(text, labelX, label\.labelY\)/);
+  assert.match(charts, /context\.fillText\(text, labelX, label\.labelY\)/);
+  assert.doesNotMatch(charts, /context\.moveTo\(label\.x \+ 7, label\.y\)/);
+  assert.doesNotMatch(charts, /context\.lineTo\(labelX - 6, label\.labelY\)/);
   assert.match(charts, /narrowChart/);
   assert.match(charts, /projectorLight/);
   assert.match(charts, /lightChartColors/);

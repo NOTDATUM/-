@@ -580,7 +580,7 @@ export function ViewDashboard({
               <h2>
                 {round === 0
                   ? "조별 기준 수익률"
-                  : `${round}라운드 단회 수익률`}
+                  : `${round}라운드 수익률`}
               </h2>
             </div>
             <div className="view-ranking-launchers" aria-label="전체 순위 화면">
@@ -610,25 +610,25 @@ export function ViewDashboard({
             aria-label={
               round === 0
                 ? "조별 기준 수익률 순위"
-                : `${round}라운드 단회 수익률 순위`
+                : `${round}라운드 수익률 순위`
             }
           >
             {roundStandings.map((team, index) => (
               <article
                 key={team.teamId}
                 role="listitem"
-                aria-label={`${index + 1}위, ${team.teamId}조, ${round === 0 ? "기준" : `${round}라운드 단회`} 수익률 ${team.roundReturnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.roundReturnRate).toFixed(1)}퍼센트`}
+                aria-label={`${index + 1}위, ${team.teamId}조, ${round === 0 ? "기준" : `${round}라운드`} 수익률 ${team.roundReturnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.roundReturnRate).toFixed(1)}퍼센트`}
               >
                 <i aria-hidden="true">{index + 1}</i>
                 <div>
                   <strong>{team.teamId}조</strong>
                   <span
                     role="meter"
-                    aria-label={`${team.teamId}조 단회 수익률 크기`}
+                    aria-label={`${team.teamId}조 ${round === 0 ? "기준" : `${round}라운드`} 수익률 크기`}
                     aria-valuemin={0}
                     aria-valuemax={maxRoundReturn}
                     aria-valuenow={Math.abs(team.roundReturnRate)}
-                    aria-valuetext={`단회 수익률 ${team.roundReturnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.roundReturnRate).toFixed(1)}퍼센트`}
+                    aria-valuetext={`${round === 0 ? "기준" : `${round}라운드`} 수익률 ${team.roundReturnRate >= 0 ? "플러스 " : "마이너스 "}${Math.abs(team.roundReturnRate).toFixed(1)}퍼센트`}
                   >
                     <b
                       aria-hidden="true"
