@@ -30,18 +30,6 @@ export function StockProfile({ stock }: { stock: Stock }) {
           ))}
         </div>
       </div>
-      <div className="stock-profile-balance">
-        <article className="growth">
-          <span>긍정 요인</span>
-          <h4>성장 동력</h4>
-          <p>{stock.strength}</p>
-        </article>
-        <article className="risk">
-          <span>주의 요인</span>
-          <h4>핵심 리스크</h4>
-          <p>{stock.risk}</p>
-        </article>
-      </div>
     </section>
   );
 }

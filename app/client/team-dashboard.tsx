@@ -309,9 +309,9 @@ export function TeamDashboard({
           <section className="client-account-card">
             <div className="client-account-top">
               <div>
-                <span>{team.teamId}조 총 자산</span>
+                <span>보유 현금</span>
                 <strong>
-                  {money.format(team.totalAsset)} <em>BE</em>
+                  {money.format(team.cash)} <em>BE</em>
                 </strong>
               </div>
               <div className="client-account-side">
@@ -332,8 +332,8 @@ export function TeamDashboard({
             </div>
             <div className="client-account-metrics">
               <div>
-                <span>보유 현금</span>
-                <strong>{money.format(team.cash)}</strong>
+                <span>{team.teamId}조 총 자산</span>
+                <strong>{money.format(team.totalAsset)}</strong>
               </div>
               <div>
                 <span>주식 평가액</span>

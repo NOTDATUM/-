@@ -87,6 +87,10 @@ test("uses a responsive service design system for participant and staff screens"
     new URL("../app/client/team-dashboard.tsx", import.meta.url),
     "utf8",
   );
+  const teamDetail = await readFile(
+    new URL("../app/client/team-detail.tsx", import.meta.url),
+    "utf8",
+  );
 
   assert.match(css, /\.client-holdings \{[^}]*display: grid/);
   assert.match(css, /--ds-action:/);
@@ -115,6 +119,16 @@ test("uses a responsive service design system for participant and staff screens"
   assert.match(teamDashboard, /setQuantity\(maxSellQuantity\)/);
   assert.match(teamDashboard, /setQuantity\(maxBuyQuantity\)/);
   assert.doesNotMatch(teamDashboard, /setQuantity\(maxOrderQuantity\)/);
+  assert.match(
+    teamDashboard,
+    /<span>보유 현금<\/span>[\s\S]*?money\.format\(team\.cash\)/,
+  );
+  assert.match(
+    teamDashboard,
+    /<span>\{team\.teamId\}조 총 자산<\/span>[\s\S]*?money\.format\(team\.totalAsset\)/,
+  );
+  assert.doesNotMatch(teamDetail, /긍정 요인|주의 요인/);
+  assert.doesNotMatch(teamDetail, /stock-profile-balance/);
   assert.match(
     css,
     /\.client-quick-quantity \{[^}]*grid-template-columns: repeat\(5,\s*minmax\(0,\s*1fr\)\)/,
