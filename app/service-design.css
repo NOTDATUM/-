@@ -7052,13 +7052,16 @@ input:disabled {
 }
 
 .view-company-identity > p {
+  max-width: 100%;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 12px;
   margin: 20px 0 8px;
   color: var(--view-text-tertiary);
   font-size: clamp(16px, 1.25vw, 20px);
   font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .view-company-identity > p strong {
@@ -7070,13 +7073,17 @@ input:disabled {
 }
 
 .view-company-identity h2 {
+  width: 100%;
+  max-width: 100%;
   margin: 0;
   color: var(--view-text);
-  font-size: clamp(48px, 5vw, 74px);
+  font-size: clamp(46px, 4vw, 58px);
   font-weight: 810;
   line-height: 1.08;
   letter-spacing: -0.04em;
-  word-break: keep-all;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .view-company-price {

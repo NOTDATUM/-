@@ -213,6 +213,10 @@ test("keeps the public view legible on a projector", async () => {
     css,
     /\.view-company-overview > p \{[^}]*font-size: clamp\(23px, 1\.75vw, 29px\)/,
   );
+  assert.match(
+    css,
+    /\.view-company-identity h2 \{[^}]*width: 100%[^}]*max-width: 100%[^}]*font-size: clamp\(46px, 4vw, 58px\)[^}]*word-break: normal[^}]*overflow-wrap: anywhere[^}]*text-wrap: balance/,
+  );
   assert.match(css, /\.view-rank-dialog,/);
   assert.match(css, /\.view-rank-board \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.view-asset-podium \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
