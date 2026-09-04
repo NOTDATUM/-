@@ -171,6 +171,9 @@ export function ViewDashboard({
     }
     return counts;
   }, [assetStandings]);
+  const hasAnyAssetTie = [...assetRankCounts.values()].some(
+    (count) => count > 1,
+  );
   const hasAssetPodium =
     assetStandings.length >= 3 &&
     assetStandings[0].assetRank === 1 &&
@@ -394,14 +397,16 @@ export function ViewDashboard({
                 <ol
                   className={
                     hasAssetPodium
-                      ? "view-asset-rank-rest"
+                      ? `view-asset-rank-rest${assetStandings.length === 12 ? " balanced-nine" : ""}`
                       : "view-asset-tied-grid"
                   }
                   start={hasAssetPodium ? 4 : undefined}
                   aria-label={
                     hasAssetPodium
                       ? "총자산 4위 이하 조"
-                      : "총자산 공동 순위"
+                      : hasAnyAssetTie
+                        ? "총자산 공동 순위"
+                        : "총자산 순위"
                   }
                 >
                   {(hasAssetPodium

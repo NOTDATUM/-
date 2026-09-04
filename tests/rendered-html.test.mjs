@@ -160,7 +160,9 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(css, /\.view-asset-podium > li \{[^}]*grid-row: 1/);
   assert.match(css, /\.view-asset-podium > li\.podium-first \{[^}]*grid-column: 5 \/ 9/);
   assert.match(css, /\.view-asset-rank-rest,[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(css, /@media \(min-width: 1400px\)[\s\S]*?\.view-asset-rank-rest \{[^}]*grid-template-columns: repeat\(9, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(min-width: 1180px\)[\s\S]*?\.view-asset-rank-rest\.balanced-nine \{[^}]*grid-template-columns: repeat\(10, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-asset-rank-rest\.balanced-nine > li:nth-child\(1\) \{[^}]*grid-column: 2 \/ 4;[^}]*grid-row: 1/);
+  assert.match(css, /\.view-asset-rank-rest\.balanced-nine > li:nth-child\(5\) \{[^}]*grid-column: 1 \/ 3;[^}]*grid-row: 2/);
   assert.match(css, /\.podium-first \.view-asset-team \{[^}]*font-size: clamp\(44px, 4vw, 68px\)/);
   assert.match(viewDashboard, /hasAssetPodium/);
   assert.match(viewDashboard, /assetRankCounts\.get\(1\) === 1/);
@@ -169,6 +171,7 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(viewDashboard, /assetRankingTabRef\.current/);
   assert.match(viewDashboard, /assetStandings\.slice\(0, 3\)/);
   assert.match(viewDashboard, /assetStandings\.slice\(3\)/);
+  assert.match(viewDashboard, /assetStandings\.length === 12/);
   assert.doesNotMatch(viewDashboard, /view-rank-private/);
   assert.doesNotMatch(viewDashboard, /team\.totalAsset/);
   assert.match(css, /@media \(max-width: 1179px\)/);
