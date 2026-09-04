@@ -31,8 +31,8 @@ test("builds the Biology Exchange login and role-based game", async () => {
   assert.match(page, /현재 라운드 주요 공지/);
   assert.match(page, /라운드 단회 수익률/);
   assert.match(page, /전체 누적 수익률 순위/);
-  assert.match(page, /전체 자산 순위/);
-  assert.match(page, /BE 금액 비공개/);
+  assert.match(page, /조별 순위/);
+  assert.match(page, /실제 BE 금액은 표시하지 않습니다/);
   assert.match(page, /이번 라운드 참고 정보/);
   assert.doesNotMatch(page, /실제 자산은 공개하지 않음/);
   assert.match(page, /화면 메뉴/);
@@ -144,6 +144,10 @@ test("keeps the public view legible on a projector", async () => {
     new URL("../app/client/charts.tsx", import.meta.url),
     "utf8",
   );
+  const viewDashboard = await readFile(
+    new URL("../app/client/view-dashboard.tsx", import.meta.url),
+    "utf8",
+  );
 
   assert.match(css, /\.view-event-copy h1[^}]*\{[^}]*font-size: clamp\(44px, 3vw, 54px\)/);
   assert.match(css, /\.view-chart-legend \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
@@ -152,6 +156,20 @@ test("keeps the public view legible on a projector", async () => {
   assert.match(css, /\.view-baseline-board \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.view-rank-dialog,/);
   assert.match(css, /\.view-rank-board \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-asset-podium \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.view-asset-podium > li\.podium-first \{[^}]*grid-column: 5 \/ 9/);
+  assert.match(css, /\.view-asset-rank-rest,[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(min-width: 1400px\)[\s\S]*?\.view-asset-rank-rest \{[^}]*grid-template-columns: repeat\(9, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.podium-first \.view-asset-team \{[^}]*font-size: clamp\(44px, 4vw, 68px\)/);
+  assert.match(viewDashboard, /hasAssetPodium/);
+  assert.match(viewDashboard, /assetRankCounts\.get\(1\) === 1/);
+  assert.match(viewDashboard, /assetRankCounts\.get\(2\) === 1/);
+  assert.match(viewDashboard, /assetRankCounts\.get\(3\) === 1/);
+  assert.match(viewDashboard, /assetRankingTabRef\.current/);
+  assert.match(viewDashboard, /assetStandings\.slice\(0, 3\)/);
+  assert.match(viewDashboard, /assetStandings\.slice\(3\)/);
+  assert.doesNotMatch(viewDashboard, /view-rank-private/);
+  assert.doesNotMatch(viewDashboard, /team\.totalAsset/);
   assert.match(css, /@media \(max-width: 1179px\)/);
   assert.match(css, /\.view-shell,[^}]*\.view-shell\.theme-light \{[^}]*height: auto/);
   assert.match(css, /@media \(min-width: 900px\) and \(max-width: 1179px\)/);

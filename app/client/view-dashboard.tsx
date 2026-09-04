@@ -70,6 +70,8 @@ export function ViewDashboard({
   const menuCloseRef = useRef<HTMLButtonElement>(null);
   const menuWasOpenRef = useRef(false);
   const rankingDialogRef = useRef<HTMLDialogElement>(null);
+  const cumulativeRankingTabRef = useRef<HTMLButtonElement>(null);
+  const assetRankingTabRef = useRef<HTMLButtonElement>(null);
   const [viewTheme, setViewTheme] = useState<ClientTheme>(() => {
     if (typeof window === "undefined") return "dark";
     const savedTheme = window.localStorage.getItem(VIEW_THEME_KEY);
@@ -132,8 +134,19 @@ export function ViewDashboard({
   useEffect(() => {
     const dialog = rankingDialogRef.current;
     if (!dialog) return;
-    if (rankingWindow && !dialog.open) dialog.showModal();
+    let animationFrame = 0;
+    if (rankingWindow) {
+      if (!dialog.open) dialog.showModal();
+      animationFrame = window.requestAnimationFrame(() => {
+        const activeTab =
+          rankingWindow === "assets"
+            ? assetRankingTabRef.current
+            : cumulativeRankingTabRef.current;
+        activeTab?.focus();
+      });
+    }
     if (!rankingWindow && dialog.open) dialog.close();
+    return () => window.cancelAnimationFrame(animationFrame);
   }, [rankingWindow]);
   const roundStandings = useMemo(
     () => sortByRate(teams, "roundReturnRate"),
@@ -151,6 +164,21 @@ export function ViewDashboard({
       ),
     [teams],
   );
+  const assetRankCounts = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const team of assetStandings) {
+      counts.set(team.assetRank, (counts.get(team.assetRank) ?? 0) + 1);
+    }
+    return counts;
+  }, [assetStandings]);
+  const hasAssetPodium =
+    assetStandings.length >= 3 &&
+    assetStandings[0].assetRank === 1 &&
+    assetStandings[1].assetRank === 2 &&
+    assetStandings[2].assetRank === 3 &&
+    assetRankCounts.get(1) === 1 &&
+    assetRankCounts.get(2) === 1 &&
+    assetRankCounts.get(3) === 1;
   const brief = viewRoundBriefs[round];
   const maxRoundReturn = Math.max(
     1,
@@ -177,8 +205,6 @@ export function ViewDashboard({
     setMenuOpen(false);
     setRankingWindow(window);
   };
-  const rankingTeams =
-    rankingWindow === "assets" ? assetStandings : cumulativeStandings;
   return (
     <main
       id="main-content"
@@ -281,7 +307,7 @@ export function ViewDashboard({
         }}
       >
         {rankingWindow && (
-          <section className="view-rank-window">
+          <section className={`view-rank-window ${rankingWindow}`}>
             <header className="view-rank-window-header">
               <div>
                 <span>
@@ -290,17 +316,18 @@ export function ViewDashboard({
                 <h2 id="view-rank-dialog-title">
                   {rankingWindow === "cumulative"
                     ? "전체 누적 수익률 순위"
-                    : "전체 자산 순위"}
+                    : "조별 순위"}
                 </h2>
                 <p>
                   {rankingWindow === "cumulative"
                     ? "시드머니 대비 현재까지의 실제 누적 수익률입니다."
-                    : "총자산이 높은 순서만 공개하며 실제 BE 금액은 표시하지 않습니다."}
+                    : "총자산 기준 순위만 공개하며 실제 BE 금액은 표시하지 않습니다."}
                 </p>
               </div>
               <div className="view-rank-window-actions">
                 <nav aria-label="순위 화면 전환">
                   <button
+                    ref={cumulativeRankingTabRef}
                     type="button"
                     className={
                       rankingWindow === "cumulative" ? "selected" : ""
@@ -311,12 +338,13 @@ export function ViewDashboard({
                     누적 수익률
                   </button>
                   <button
+                    ref={assetRankingTabRef}
                     type="button"
                     className={rankingWindow === "assets" ? "selected" : ""}
                     aria-pressed={rankingWindow === "assets"}
                     onClick={() => setRankingWindow("assets")}
                   >
-                    전체 자산
+                    총자산
                   </button>
                 </nav>
                 <button
@@ -329,42 +357,100 @@ export function ViewDashboard({
                 </button>
               </div>
             </header>
-            <ol
-              className={`view-rank-board ${rankingWindow === "assets" ? "assets" : "cumulative"}`}
-              aria-label={
-                rankingWindow === "cumulative"
-                  ? "전체 누적 수익률 순위"
-                  : "전체 자산 순위, 자산 금액 비공개"
-              }
-            >
-              {rankingTeams.map((team, index) => {
-                const displayRank =
-                  rankingWindow === "assets" ? team.assetRank : index + 1;
-                return (
-                  <li
-                    key={team.teamId}
-                    className={
-                      displayRank <= 3 ? `rank-${displayRank}` : undefined
-                    }
-                    aria-label={
-                      rankingWindow === "cumulative"
-                        ? `${displayRank}위, ${team.teamId}조, 누적 수익률 ${signedRate(team.returnRate, 2)}`
-                        : `${displayRank}위, ${team.teamId}조, 자산 금액 비공개`
-                    }
+            {rankingWindow === "assets" ? (
+              <div
+                className={`view-asset-rank-board ${hasAssetPodium ? "podium-ready" : "shared-ranks"}`}
+              >
+                {hasAssetPodium && (
+                  <ol
+                    className="view-asset-podium"
+                    aria-label="총자산 상위 3개 조"
                   >
-                    <span className="view-rank-position">
-                      <strong>{displayRank}</strong>
-                      <small>위</small>
-                    </span>
-                    <div className="view-rank-team">
-                      <strong>{team.teamId}조</strong>
-                      <span>
-                        {rankingWindow === "cumulative"
-                          ? "누적 수익률"
-                          : "총자산 순위"}
+                    {assetStandings.slice(0, 3).map((team, index) => {
+                      const podiumSlot = ["first", "second", "third"][index];
+                      return (
+                        <li
+                          key={team.teamId}
+                          className={`podium-${podiumSlot} rank-${team.assetRank}`}
+                          aria-label={`${team.assetRank}위, ${team.teamId}조`}
+                        >
+                          <span className="view-asset-rank-badge">
+                            <strong>{team.assetRank}</strong>
+                            <small>위</small>
+                          </span>
+                          <strong className="view-asset-team">
+                            {team.teamId}조
+                          </strong>
+                          {index === 0 && (
+                            <span className="view-asset-crown" aria-hidden="true">
+                              ♛
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+                <ol
+                  className={
+                    hasAssetPodium
+                      ? "view-asset-rank-rest"
+                      : "view-asset-tied-grid"
+                  }
+                  start={hasAssetPodium ? 4 : undefined}
+                  aria-label={
+                    hasAssetPodium
+                      ? "총자산 4위 이하 조"
+                      : "총자산 공동 순위"
+                  }
+                >
+                  {(hasAssetPodium
+                    ? assetStandings.slice(3)
+                    : assetStandings
+                  ).map((team) => {
+                    const sharedRank =
+                      (assetRankCounts.get(team.assetRank) ?? 0) > 1;
+                    return (
+                      <li
+                        key={team.teamId}
+                        aria-label={`${sharedRank ? "공동 " : ""}${team.assetRank}위, ${team.teamId}조`}
+                      >
+                        <span className="view-asset-rest-rank">
+                          {sharedRank && <small>공동</small>}
+                          <strong>{team.assetRank}</strong>
+                          <small>위</small>
+                        </span>
+                        <strong className="view-asset-team">
+                          {team.teamId}조
+                        </strong>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
+            ) : (
+              <ol
+                className="view-rank-board cumulative"
+                aria-label="전체 누적 수익률 순위"
+              >
+                {cumulativeStandings.map((team, index) => {
+                  const displayRank = index + 1;
+                  return (
+                    <li
+                      key={team.teamId}
+                      className={
+                        displayRank <= 3 ? `rank-${displayRank}` : undefined
+                      }
+                      aria-label={`${displayRank}위, ${team.teamId}조, 누적 수익률 ${signedRate(team.returnRate, 2)}`}
+                    >
+                      <span className="view-rank-position">
+                        <strong>{displayRank}</strong>
+                        <small>위</small>
                       </span>
-                    </div>
-                    {rankingWindow === "cumulative" ? (
+                      <div className="view-rank-team">
+                        <strong>{team.teamId}조</strong>
+                        <span>누적 수익률</span>
+                      </div>
                       <div className="view-rank-result">
                         <em
                           className={team.returnRate >= 0 ? "up" : "down"}
@@ -382,16 +468,11 @@ export function ViewDashboard({
                           />
                         </span>
                       </div>
-                    ) : (
-                      <div className="view-rank-private" aria-hidden="true">
-                        <span>비공개</span>
-                        <strong>BE 금액 비공개</strong>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
             <footer>
               <span aria-hidden="true" />
               게임 서버의 최신 기록을 2초마다 반영합니다.

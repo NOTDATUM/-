@@ -383,12 +383,23 @@ test("reports single-round returns and asset ranks to the public view without le
       roundReturnRate: 14.5,
       assetRank: 1,
     });
+    for (const team of roundOneData.teams) {
+      assert.deepEqual(Object.keys(team).sort(), [
+        "assetRank",
+        "returnRate",
+        "roundReturnRate",
+        "teamId",
+      ]);
+    }
     for (const privateField of [
       "seedMoney",
       "cash",
+      "hintCoins",
       "totalAsset",
       "holdings",
       "trades",
+      "online",
+      "lastSeenAt",
     ]) {
       assert.equal(roundOneData.teams[0][privateField], undefined);
     }
